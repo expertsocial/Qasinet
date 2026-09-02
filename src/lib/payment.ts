@@ -31,10 +31,6 @@ export interface PaymentStatusResult {
   receiptData?: any;
 }
 
-/**
- * Mock implementation of a Payment Service layer.
- * Prepares the architecture for the configured payment gateway.
- */
 export class PaymentService {
   /**
    * Generates a unique idempotency key for the order
@@ -44,57 +40,87 @@ export class PaymentService {
   }
 
   /**
-   * Initiates the payment process
+   * Initiates the payment process by calling our backend API.
    */
   static async initiatePayment(order: OrderPayload, idempotencyKey: string): Promise<PaymentInitResult> {
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    const payload = {
+      serviceSlug: order.serviceId,
+      // If order.metadata.productId exists use it, otherwise undefined
+      productId: order.metadata?.productId || undefined,
+      destination: order.destination,
+      amount: order.amount,
+      guestPhone: order.paymentPhone
+    };
 
-    // Generate internal reference
-    const reference = `QNT-${Math.floor(Math.random() * 10000000).toString().padStart(8, '0')}`;
+    const response = await fetch('/api/transactions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-idempotency-key': idempotencyKey
+      },
+      body: JSON.stringify(payload)
+    });
 
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Failed to initiate payment');
+    }
+
+    const data = await response.json();
     return {
-      reference,
+      reference: data.transaction.reference,
       idempotencyKey,
     };
   }
 
   /**
-   * Polls the backend for payment status.
-   * In a real implementation, this checks our backend, not the payment gateway directly.
+   * Polls the backend for payment/vending status.
    */
   static async checkStatus(reference: string, attempt: number): Promise<PaymentStatusResult> {
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    const response = await fetch(`/api/transactions/${reference}/status`, {
+      method: 'GET',
+    });
 
-    // Simulate state progression based on attempt number
-    if (attempt === 1) {
-      return { state: "PENDING" }; // STK pushed
+    if (!response.ok) {
+      throw new Error('Failed to fetch status');
     }
+
+    const data = await response.json();
     
-    if (attempt === 2) {
-      return { state: "CONFIRMED" }; // Customer entered PIN
+    // Map the database status to the frontend PaymentState
+    const dbState = data.state;
+    let paymentState: PaymentState = "UNKNOWN";
+
+    switch (dbState) {
+      case 'CREATED':
+      case 'PAYMENT_PENDING':
+        paymentState = "PENDING";
+        break;
+      case 'PAYMENT_CONFIRMED':
+        paymentState = "CONFIRMED";
+        break;
+      case 'VENDING_PENDING':
+        paymentState = "PROCESSING";
+        break;
+      case 'SUCCESS':
+        paymentState = "SUCCESS";
+        break;
+      case 'PAYMENT_FAILED':
+      case 'VENDING_FAILED':
+      case 'REVERSED':
+        paymentState = "FAILED";
+        break;
+      case 'TIMEOUT':
+        paymentState = "TIMEOUT";
+        break;
+      default:
+        paymentState = "UNKNOWN";
     }
 
-    if (attempt === 3) {
-      return { state: "PROCESSING" }; // Vending the service
-    }
-
-    // Attempt 4: final resolution
-    const rand = Math.random();
-    if (rand > 0.15) {
-      return { 
-        state: "SUCCESS", 
-        providerRef: `PRV-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
-        // Mock receipt data if applicable (e.g. Tokens)
-        receiptData: {
-          token: Array.from({length: 20}, () => Math.floor(Math.random() * 10)).join('')
-        }
-      };
-    } else {
-      return { 
-        state: "FAILED", 
-        message: "Insufficient funds or provider timeout."
-      };
-    }
+    return { 
+      state: paymentState,
+      providerRef: data.providerRef,
+      receiptData: data.receiptData
+    };
   }
 }

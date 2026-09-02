@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { ArrowLeft, CreditCard, Activity, CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
 import { notFound } from 'next/navigation';
 
+import { ReconcileButton } from './ReconcileButton';
+
 export default async function TransactionDetail({ params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient();
   const { id } = await params;
@@ -44,19 +46,27 @@ export default async function TransactionDetail({ params }: { params: Promise<{ 
     .eq('provider_reference', tx.kyanda_reference || 'unknown')
     .order('created_at', { ascending: true });
 
+  const canReconcile = tx.kyanda_reference && !['SUCCESS', 'VENDING_FAILED', 'REVERSED'].includes(tx.status);
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
-      <div className="flex items-center gap-4">
-        <Link href="/admin/transactions" className="p-2 rounded-full hover:bg-neutral-800 text-neutral-400 transition-colors">
-          <ArrowLeft size={20} />
-        </Link>
-        <div>
-          <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-3">
-            Transaction Details
-            <StatusBadge status={tx.status} />
-          </h2>
-          <p className="text-neutral-400 font-mono text-sm mt-1">{tx.qsn_reference}</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Link href="/admin/transactions" className="p-2 rounded-full hover:bg-neutral-800 text-neutral-400 transition-colors">
+            <ArrowLeft size={20} />
+          </Link>
+          <div>
+            <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-3">
+              Transaction Details
+              <StatusBadge status={tx.status} />
+            </h2>
+            <p className="text-neutral-400 font-mono text-sm mt-1">{tx.qsn_reference}</p>
+          </div>
         </div>
+        
+        {canReconcile && (
+          <ReconcileButton transactionId={tx.id} />
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

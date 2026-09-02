@@ -61,8 +61,8 @@ export function UnifiedCheckout({ order, onEditDetails, onSuccess }: UnifiedChec
         if (result.providerRef) setProviderRef(result.providerRef);
 
         if (result.state === "PENDING" || result.state === "CONFIRMED" || result.state === "PROCESSING") {
-          // Continue polling if still in progress
-          if (attemptRef.current < 6) {
+          // Continue polling if still in progress (max 30 attempts * 4s = 120s)
+          if (attemptRef.current < 30) {
             pollStatus(ref);
           } else {
              setPaymentState("TIMEOUT");
@@ -79,10 +79,14 @@ export function UnifiedCheckout({ order, onEditDetails, onSuccess }: UnifiedChec
            }
         }
       } catch (err) {
-        // If polling fails randomly, we assume unknown
-        setPaymentState("UNKNOWN");
+        // Continue polling if network error, unless we hit max
+        if (attemptRef.current < 30) {
+          pollStatus(ref);
+        } else {
+          setPaymentState("UNKNOWN");
+        }
       }
-    }, 2000);
+    }, 4000); // 4 seconds between polls
   };
 
   // Cleanup polling on unmount
