@@ -1,0 +1,84 @@
+# Phase 5A: Production Database and Backend Foundation
+
+This plan outlines the steps for setting up a robust, production-ready backend architecture using Supabase (PostgreSQL), Next.js API Routes, and Zod validation, strictly following the Phase 5A requirements.
+
+## User Review Required
+
+> [!WARNING]
+> **Database Initialization:** I've noticed that Supabase is not yet initialized in this project. I will manually create the `supabase/migrations/` directory and write the initial SQL schema. You can later link this to your remote Supabase project using the Supabase CLI (`supabase link` and `supabase db push`). Does this approach work for you?
+
+## Open Questions
+
+> [!IMPORTANT]
+> 1. **Supabase Auth vs Custom Auth Table:** Do you plan to use Supabase's built-in Authentication (`auth.users`), or should I create a custom `public.users` table completely independent of Supabase Auth? (I will assume we are extending `auth.users` via a `public.profiles` table to leverage built-in secure sessions, as is the Supabase best practice).
+> 2. **ORM/Query Builder:** The instructions specify creating migrations and interacting with the DB. I will install `@supabase/supabase-js` as the primary client. Do you need a heavier ORM like Prisma or Drizzle, or is the Supabase JS client sufficient for this phase?
+
+## Proposed Changes
+
+---
+
+### 1. Database Schema & Migrations
+
+#### [NEW] `supabase/migrations/00000000000000_initial_schema.sql`
+I will create a massive, robust migration file that defines the following tables with strict Data Types and Relationships:
+- `profiles` (Extends `auth.users` for authenticated customers)
+- `admins` (Separate table for admin authorization)
+- `service_providers` (e.g., Kyanda, Safaricom)
+- `services` (e.g., Airtime, Data, Electricity)
+- `products` (e.g., Specific data bundles)
+- `pricing` (Server-side calculation rules: Selling Price vs Provider Cost)
+- `transactions` (Core ledger: custom `QSN-YYYYMMDD-XXXXXX` ID format)
+- `transaction_events` (Audit log for state machine transitions)
+- `payments` (M-Pesa, Card payments tied to transactions)
+- `kyanda_transactions` (Provider-specific metadata)
+- `webhook_events` (Log of incoming callbacks)
+- `receipts` (Immutable receipt data)
+- `notifications`
+- `saved_beneficiaries`
+- `audit_logs` (Admin actions)
+- `system_settings` (Global toggles)
+
+---
+
+### 2. Row Level Security (RLS)
+
+I will implement strict RLS policies directly in the SQL migration:
+- **Guests:** Can only read `transactions` if they provide the exact matching Phone Number AND Transaction ID (enforced via secure Postgres functions).
+- **Users:** Can read/update only their own records (`auth.uid() = user_id`).
+- **Admins:** Can read/write all records (enforced via a custom `is_admin()` Postgres function checking the `admins` table).
+
+---
+
+### 3. Backend Client & Validation
+
+#### [MODIFY] `package.json`
+Install required dependencies: `@supabase/supabase-js`, `@supabase/ssr`, `zod`.
+
+#### [NEW] `src/lib/supabase/client.ts` & `src/lib/supabase/server.ts`
+Setup Supabase SSR clients for securely querying the database from both Client Components and Server APIs.
+
+#### [NEW] `src/lib/validations/transaction.ts`
+Implement robust Zod schemas to validate all incoming requests (Phone numbers, amounts, service IDs) before they ever touch the database.
+
+---
+
+### 4. API Architecture Foundation
+
+Create the core Next.js Route Handlers to serve as our secure backend API:
+
+#### [NEW] `src/app/api/services/route.ts`
+Fetches available services and their active configurations/pricing.
+
+#### [NEW] `src/app/api/transactions/route.ts`
+Handles transaction initiation. Includes server-side pricing calculation (Profit = Selling Price - Provider Cost) and state machine initialization (`CREATED`).
+
+#### [NEW] `src/app/api/track/route.ts`
+Securely looks up transaction status for guests without leaking sensitive provider/profit margins.
+
+## Verification Plan
+
+### Automated/Manual Validation
+1. Apply the SQL migration to a local or remote Supabase instance (simulated via strict syntax checking if local CLI is unavailable).
+2. Validate that Zod schemas correctly reject malformed phone numbers or negative amounts.
+3. Verify the transaction ID generator logic correctly outputs the `QSN-YYYYMMDD-XXXXXX` format.
+4. Verify the API endpoints return correct HTTP statuses (401 Unauthorized, 400 Bad Request) for invalid payloads.

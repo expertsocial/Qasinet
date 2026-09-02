@@ -1,0 +1,17 @@
+# Walkthrough: Phase 6A - Kyanda Provider Foundation
+
+I have successfully implemented the foundation for the Kyanda API integration. The focus was entirely on establishing a secure, correct, and robust backend framework without exposing secrets or leaking business logic to the client.
+
+## What was Changed
+
+- **Environment Config**: Updated [`.env.example`](file:///c:/Users/HomePC/Desktop/Qasinet/.env.example) to include required variables like `KYANDA_BASE_URL` (sandbox default) and `KYANDA_SECURITY_KEY`.
+- **Kyanda HTTP Client**: Created [`client.ts`](file:///c:/Users/HomePC/Desktop/Qasinet/src/lib/providers/kyanda/client.ts) to manage secure interactions. It omits sensitive information from logs, automatically applies timeouts, implements exponential backoff on retries for network failures, and strictly validates API-level success codes.
+- **Signature Engine**: Created [`signature.ts`](file:///c:/Users/HomePC/Desktop/Qasinet/src/lib/providers/kyanda/signature.ts) to handle the very strict HMAC SHA-256 signature generation, correctly parsing fields specific to each unique Kyanda endpoint payload.
+- **Error Mapping**: Created [`errors.ts`](file:///c:/Users/HomePC/Desktop/Qasinet/src/lib/providers/kyanda/errors.ts) to meticulously map internal Kyanda error codes (e.g., 1104, 8006) to unified `QasiNetError` categories for robust frontend reporting and safe orchestration.
+- **Provider Methods**: Initialized the [`provider.ts`](file:///c:/Users/HomePC/Desktop/Qasinet/src/lib/providers/kyanda/provider.ts) with implementations for `checkAccountBalance` and `checkTransactionStatus` endpoints.
+
+## Validation and Testing
+
+- Built an isolated testing suite via Vitest located at [`__tests__/kyanda.test.ts`](file:///c:/Users/HomePC/Desktop/Qasinet/__tests__/kyanda.test.ts). 
+- Tested signature match generations, exact HTTP error mappings, and the retry/timeout mechanisms of the `KyandaClient`. 
+- **Results:** Executed `npm run test` which completed successfully (all 18 tests passed natively across the whole suite).

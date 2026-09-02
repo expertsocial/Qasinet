@@ -1,0 +1,90 @@
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { TransactionOrchestrator } from '@/lib/services/orchestrator';
+import { KyandaSignatureEngine } from '@/lib/providers/kyanda/signature';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const kyandaMerchantId = process.env.KYANDA_MERCHANT_ID || '';
+const kyandaSecurityKey = process.env.KYANDA_SECURITY_KEY || '';
+
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+const orchestrator = new TransactionOrchestrator(supabase);
+
+export async function POST(req: Request) {
+  try {
+    const payload = await req.json();
+
+    const { transactionRef, Status, status, status_code, message, signature } = payload;
+    const providerReference = transactionRef;
+    const finalStatus = Status || status; 
+
+    if (!providerReference) {
+      return NextResponse.json({ status: 'ignored', message: 'Missing transactionRef' }, { status: 200 });
+    }
+
+    // 1. Signature Verification
+    if (!signature) {
+      console.warn(`Webhook missing signature for ref: ${providerReference}`);
+      return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
+    }
+
+    const isValidSignature = KyandaSignatureEngine.verifyCallbackSignature(
+      kyandaMerchantId,
+      providerReference,
+      finalStatus,
+      signature,
+      kyandaSecurityKey
+    );
+
+    if (!isValidSignature) {
+      console.error(`Invalid webhook signature for ref: ${providerReference}`);
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    }
+
+    // 2. Idempotency Check
+    const { error: insertError } = await supabase.from('webhook_events').insert({
+      provider: 'KYANDA',
+      event_type: 'IPN',
+      provider_reference: providerReference,
+      status: finalStatus,
+      payload: payload,
+    });
+
+    if (insertError) {
+      if (insertError.code === '23505') {
+        return NextResponse.json({ status: 'success', message: 'Duplicate webhook ignored' }, { status: 200 });
+      }
+      console.error('Failed to log webhook_events. Continuing processing safely.');
+    }
+
+    // 3. Lookup QasiNet Transaction
+    const { data: tx, error: txError } = await supabase
+      .from('transactions')
+      .select('id, status')
+      .eq('kyanda_reference', providerReference)
+      .single();
+
+    if (txError || !tx) {
+      return NextResponse.json({ status: 'success', message: 'Unknown transaction' }, { status: 200 });
+    }
+
+    // 4. Process Transaction State
+    // Only process if it is pending vending to avoid duplicate processing of terminal states.
+    if (tx.status === 'VENDING_PENDING') {
+      const isSuccess = status_code === '0000' || finalStatus === 'Success' || finalStatus === '0000';
+      const reason = isSuccess ? undefined : message || finalStatus;
+
+      await orchestrator.finalizeTransaction(tx.id, isSuccess, reason, providerReference);
+    } else {
+      // It's already in a terminal state, just acknowledge.
+      console.log(`Webhook received for transaction ${tx.id} but state is ${tx.status}. Ignored.`);
+    }
+
+    return NextResponse.json({ status: 'success' }, { status: 200 });
+  } catch (error) {
+    // Avoid logging the raw payload as it might contain sensitive info if malformed
+    console.error('Webhook processing error:', error instanceof Error ? error.message : 'Unknown error');
+    return NextResponse.json({ status: 'error' }, { status: 500 });
+  }
+}

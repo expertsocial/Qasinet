@@ -1,0 +1,80 @@
+# Phase 7A: Admin Control Center — Operations
+
+This phase focuses on building a secure, premium operational dashboard for QasiNet administrators. It introduces robust security measures, dynamic charts, and comprehensive transaction and customer management tools.
+
+## User Review Required
+
+> [!IMPORTANT]
+> **MFA/2FA Architecture**: The plan proposes using Supabase's built-in Multi-Factor Authentication (MFA/AAL2). Admins will be required to configure an Authenticator app (TOTP) to access `/admin`. This requires `supabase-js` MFA APIs. Do you approve of this approach, or do you have a custom 2FA provider in mind?
+
+> [!IMPORTANT]
+> **Dependencies**: I will install `recharts` to build the required Daily Sales, Profit, and Volume charts, as it is standard and responsive. Is `recharts` acceptable?
+
+## Open Questions
+
+- Should we implement a manual setup page for the very first Admin to assign themselves the role, or will you manually add the first admin ID to the `admins` table in the Supabase dashboard?
+- For the "Audit Logging" requirement, I will add helper functions to write to the existing `audit_logs` table for sensitive actions (e.g., suspending a user). Should we expose an `/admin/audit-logs` view right now, or keep it backend-only for this phase?
+
+## Proposed Changes
+
+### Security & Middleware
+
+#### [NEW] `src/middleware.ts`
+Implement Next.js middleware using `@supabase/ssr` to protect all `/admin` routes.
+- Verify user is logged in.
+- Query the `admins` table to verify role.
+- Check `supabase.auth.mfa.getAuthenticatorAssuranceLevel()` to ensure AAL2 (MFA verified). If only AAL1, redirect to `/admin/mfa-setup` or `/admin/mfa-verify`.
+- Implement Session Timeout logic by checking token expiry.
+
+### Admin Dashboard & Layout
+
+#### [NEW] `src/app/admin/layout.tsx`
+Create the persistent Admin shell.
+- Sidebar with navigation (Dashboard, Transactions, Customers, Kyanda Status).
+- Top bar with Dark/Light mode toggle, Admin Profile, and Logout.
+
+#### [NEW] `src/app/admin/page.tsx`
+The main dashboard view.
+- **Summary Cards**: Today's Sales, Profit, Total/Successful/Failed/Pending Transactions, Kyanda Balance & Earnings.
+- **Charts Component**: Integrate `recharts` to display Daily Sales, Daily Profit, Transaction Volume, and Service Popularity.
+
+### Transaction Management
+
+#### [NEW] `src/app/admin/transactions/page.tsx`
+- A robust data table view.
+- Implementation of search (Phone, Account, QSN Ref, Kyanda Ref).
+- Implementation of filters (Service, Status, Date range).
+
+#### [NEW] `src/app/admin/transactions/[id]/page.tsx`
+- Detailed transaction view.
+- Displays Customer, Service, Pricing, Profit, and Status timeline.
+- Shows raw callback events and provider responses for debugging (Admin only).
+
+### Customer Management
+
+#### [NEW] `src/app/admin/customers/page.tsx`
+- List of registered customers.
+- Displays Name, Phone, Email, Reg Date, Tx Count, Total Spend.
+
+#### [NEW] `src/app/admin/customers/[id]/page.tsx`
+- Customer detail view with transaction history.
+- Actions: Suspend, Activate, Reset Account. (Will write to `audit_logs`).
+
+### Kyanda Operations
+
+#### [NEW] `src/app/admin/kyanda/page.tsx`
+- Calls `KyandaProvider.checkAccountBalance()` securely on the server.
+- Displays Available float, Earnings, and API connection state.
+- Strictly ensures API keys are NEVER exposed to the client.
+
+## Verification Plan
+
+### Automated Tests
+- No new automated tests are strictly required for the UI, but we will test the middleware redirection logic if possible.
+
+### Manual Verification
+1. Manually attempt to navigate to `/admin` as a guest (expect redirect).
+2. Attempt to navigate to `/admin` as a normal user (expect 403 or redirect).
+3. Attempt to navigate as an Admin without MFA (expect redirect to MFA setup/verify).
+4. Verify Recharts rendering on the Dashboard.
+5. Search for a transaction using a Kyanda Reference.

@@ -1,0 +1,91 @@
+# Phase 6A: Kyanda Provider Foundation
+
+This phase establishes the foundational integration with the Kyanda production API. It creates a robust, secure HTTP client, an exact signature generation engine, explicit error mapping based on documentation, and implements the initial Account Balance and Transaction Check endpoints.
+
+## User Review Required
+
+> [!WARNING]
+> **Production Safety:** All Kyanda credentials will be stored safely in server-side environment variables and never exposed to the client. The testing suite will be configured to run against the sandbox environment `http://sandbox.kyanda.io:3030` and not production.
+
+## Open Questions
+
+> [!IMPORTANT]
+> 1. **Logging Strategy:** Do you have a preferred server-side logging tool (like Pino or Winston) for the Kyanda HTTP client, or should I start with standard sanitized `console.log/error` wrappers for request/response tracking?
+> 2. **Retry Strategy:** Are there specific timeout durations or retry limits (e.g., 3 retries, 5000ms timeout) you prefer for network-level failures when reaching out to Kyanda?
+
+## Proposed Changes
+
+---
+
+### 1. Environment Configuration
+
+#### [MODIFY] `.env.example`
+Add the following keys:
+- `KYANDA_BASE_URL` (Sandbox: `http://sandbox.kyanda.io:3030`)
+- `KYANDA_API_KEY`
+- `KYANDA_MERCHANT_ID`
+- `KYANDA_SECURITY_KEY`
+- `KYANDA_CALLBACK_URL`
+
+---
+
+### 2. Kyanda Signature Engine
+
+#### [NEW] `src/lib/providers/kyanda/signature.ts`
+Create endpoint-specific signature functions using HMAC SHA-256 and the `KYANDA_SECURITY_KEY`, matching exact concatenation requirements:
+- `generateAccountBalanceSignature()`: `MerchantID`
+- `generateTransactionCheckSignature()`: `MerchantID + transactionRef`
+- `generateAirtimeSignature()`: `amount + phone + telco + initiatorPhone + MerchantID`
+- `generateBillSignature()`: `amount + account + telco + initiatorPhone + MerchantID`
+- `generateCheckoutSignature()`: `amount + phoneNumber + channel + MerchantID`
+
+---
+
+### 3. Kyanda HTTP Client
+
+#### [NEW] `src/lib/providers/kyanda/client.ts`
+Build a secure wrapper around native `fetch`:
+- **Sanitization**: Never logs `apiKey` or `signature`.
+- **Request IDs**: Generates internal tracking IDs for outgoing requests.
+- **Timeout & Retries**: Implements timeout logic and safe retries on network failures (but avoids blindly retrying on HTTP 400s).
+
+---
+
+### 4. Error Mapping
+
+#### [NEW] `src/lib/providers/kyanda/errors.ts`
+Map Kyanda's exact status codes to internal `QasiNetError` categories:
+- `0000`, `1100`: Success/Pending
+- `1104`: Signature Mismatch -> `PROVIDER_ERROR`
+- `1107`: Insufficient Float -> `INSUFFICIENT_FLOAT`
+- `8001`, `8002`, `8003`, `8004`, `8005`: Invalid Formats -> `VALIDATION_ERROR`
+- `8006`, `9005`: Duplicate Transmission -> `DUPLICATE_REQUEST`
+- `1105`, `1106`: Service Unavailable -> `SERVICE_UNAVAILABLE`
+
+---
+
+### 5. Kyanda Provider
+
+#### [NEW] `src/lib/providers/kyanda/provider.ts`
+Implement `KyandaProvider` wrapping the HTTP client and Signature engine.
+- `checkAccountBalance()`: Retrieves `Account_Bal` and `Earnings_Bal`.
+- `checkTransactionStatus(transactionRef)`: Queries Kyanda and normalizes the response status into QasiNet's internal state model.
+
+---
+
+### 6. Testing
+
+#### [NEW] `__tests__/kyanda.test.ts`
+Add unit tests using `vitest` to verify:
+- Signature generation logic produces exactly expected hashes.
+- Error codes are correctly mapped to QasiNet errors.
+- The HTTP client correctly signs and issues requests to Account Balance and Transaction Check endpoints using sandbox endpoints.
+- Ensure authentication failure handling and missing parameter validations work as intended.
+
+## Verification Plan
+
+### Automated Tests
+- Run `npm run test` specifically against the new `kyanda.test.ts` suite.
+
+### Manual Verification
+- None required yet, as these are backend utility modules. They will be utilized in Phase 6B/6C.

@@ -1,0 +1,37 @@
+# Phase 7B: Admin Finance, Settings, Reporting and Support (Completed)
+
+I have implemented the features for Phase 7B. As per your instruction, we skipped the complex Admin Roles setup and maintained a single unified Admin capability, simplifying the process and securing everything under the standard `is_admin()` policy.
+
+## Changes Made
+
+1. **Database Extensions**:
+   - Added `ip_address` to `audit_logs`.
+   - Created the `support_tickets` table with RLS policies allowing users to create/view their own tickets and admins to manage them.
+   - Initialized default `system_settings` records (e.g. `kyanda_config` and `general_config`).
+
+2. **Admin Sidebar Expansion**:
+   - Updated the sidebar to include links to **Services & Pricing**, **Reports**, **System Settings**, and **Support Tickets**.
+   
+3. **Services & Pricing UI (`/admin/services`)**:
+   - Displays all registered services and their status.
+   - Allows configuration of global pricing models or product-specific pricing (Provider Cost/Selling Price, flat fees vs percentages).
+   
+4. **Reports Dashboard (`/admin/reports`)**:
+   - Integrated Recharts to display interactive charts for daily revenue and profit, and service performance.
+   - Implemented a CSV export feature to download transactional data.
+
+5. **System Settings (`/admin/settings`)**:
+   - Centralized configuration for general settings (Timezone, Currency) and Kyanda API credentials.
+   - Replaced `.env` dependency for keys by utilizing `system_settings` (which allows admins to dynamically update keys securely).
+   - Added a "Test Connection" server action that simulates reaching Kyanda.
+
+6. **Support Ticketing (`/admin/support`)**:
+   - Customer complaint tracking linked to specific `transaction_id`s.
+   - Admins can assign statuses (`OPEN`, `RESOLVED`, `CLOSED`) and track details.
+
+7. **Audit Logging Framework (`src/lib/audit.ts`)**:
+   - A central utility that intercepts admin state changes (e.g. updating pricing, settings, or ticket status) and logs them securely into `audit_logs`.
+
+## Next Steps
+
+We can proceed to test these interfaces live on your end. For example, you can visit `http://localhost:3000/admin/settings` and verify the Kyanda settings are loading, or check `/admin/reports` to see your transaction aggregates. Let me know if you would like me to adjust any of these screens or if you're ready for the next phase.
