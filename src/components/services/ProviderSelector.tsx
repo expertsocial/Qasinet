@@ -39,6 +39,7 @@ export function ProviderSelector({ providers, selectedProviderId, onSelect, clas
                 src={provider.logoSrc} 
                 alt={provider.name} 
                 fill 
+                sizes="64px"
                 className="object-contain p-2" 
               />
             </div>

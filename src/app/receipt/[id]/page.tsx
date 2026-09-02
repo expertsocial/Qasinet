@@ -78,6 +78,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
                 src="/logos/qasinet-logo.jpeg" 
                 alt="QasiNet" 
                 fill 
+                sizes="64px"
                 className="object-cover"
               />
             </div>

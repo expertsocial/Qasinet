@@ -19,7 +19,7 @@ export function CheckoutReview({ order, className }: CheckoutReviewProps) {
         {/* Header / Merchant */}
         <div className="flex items-center gap-3 border-b border-border/50 pb-4">
           <div className="relative w-10 h-10 overflow-hidden rounded-md bg-secondary flex items-center justify-center p-1">
-             <Image src="/logos/WhatsApp image.jpeg" alt="QasiNet" fill className="object-cover" />
+             <Image src="/logos/qasinet-logo.jpeg" alt="QasiNet" fill sizes="40px" className="object-cover" />
           </div>
           <div>
             <h3 className="font-semibold text-lg leading-tight">QasiNet</h3>

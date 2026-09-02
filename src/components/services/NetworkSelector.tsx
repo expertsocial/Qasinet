@@ -48,6 +48,7 @@ export function NetworkSelector({ selectedNetwork, onSelect, className }: Networ
                 src={network.logoSrc} 
                 alt={network.name} 
                 fill 
+                sizes="48px"
                 className="object-contain p-1" 
               />
             </div>
