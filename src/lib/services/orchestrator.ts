@@ -131,7 +131,7 @@ export class TransactionOrchestrator {
       .single();
 
     if (txError || !transaction) {
-      console.error('Failed to initialize transaction:', txError.message);
+      console.error('Failed to initialize transaction:', txError?.message);
       throw new QasiNetError('UNKNOWN', 'Failed to initialize transaction');
     }
 

@@ -72,8 +72,19 @@ export async function POST(req: Request) {
     // 4. Process Transaction State
     // Only process if it is pending vending to avoid duplicate processing of terminal states.
     if (tx.status === 'VENDING_PENDING') {
-      const isSuccess = status_code === '0000' || finalStatus === 'Success' || finalStatus === '0000';
-      const reason = isSuccess ? undefined : message || finalStatus;
+      let isSuccess = false;
+      const detailStatus = payload.details?.Status || payload.details?.status;
+      
+      if (detailStatus) {
+        isSuccess = (detailStatus === 'Success' || detailStatus === '0000');
+      } else if (status_code) {
+        // 0000 is success, 1100 is transaction pending/processing
+        isSuccess = (status_code === '0000' || status_code === '1100');
+      } else {
+        isSuccess = (finalStatus === 'Success' || finalStatus === '0000');
+      }
+
+      const reason = isSuccess ? undefined : message || payload.transactiontxt || finalStatus || 'Failed';
 
       await orchestrator.finalizeTransaction(tx.id, isSuccess, reason, providerReference);
     } else {

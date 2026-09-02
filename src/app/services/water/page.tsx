@@ -17,7 +17,7 @@ type Step = 1 | 2 | 3 | 4 | 5;
 // Extensible other bills architecture based on config
 // If a provider's 'enabled' flag is false, it won't appear.
 const WATER_PROVIDERS: (ProviderOption & { enabled: boolean })[] = [
-  { id: "nairobi-water", name: "Nairobi Water", logoSrc: "/logos/water service logo.jpg", enabled: true },
+  { id: "nairobi-water", name: "Nairobi Water", logoSrc: "/logos/water-service-logo.jpg", enabled: true },
   // { id: "mombasa-water", name: "Mombasa Water", logoSrc: "/logos/water-generic.png", enabled: false }, // Example of disabled
 ];
 

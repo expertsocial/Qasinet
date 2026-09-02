@@ -10,14 +10,15 @@ import { Button, buttonVariants } from "@/components/ui/Button";
 import { ArrowLeft, ArrowRight, Tv } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { isValidKenyanPhone } from "@/lib/validation";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
 const TV_PROVIDERS: ProviderOption[] = [
-  { id: "dstv", name: "DStv", logoSrc: "/logos/dstv logo.jpg" },
-  { id: "gotv", name: "GOtv", logoSrc: "/logos/Gotv logo.png" },
-  { id: "zuku", name: "Zuku", logoSrc: "/logos/zuku logo.jpg" },
-  { id: "startimes", name: "StarTimes", logoSrc: "/logos/startimes logo.jpg" },
+  { id: "dstv", name: "DStv", logoSrc: "/logos/dstv-logo.jpg" },
+  { id: "gotv", name: "GOtv", logoSrc: "/logos/gotv-logo.png" },
+  { id: "zuku", name: "Zuku", logoSrc: "/logos/zuku-logo.jpg" },
+  { id: "startimes", name: "StarTimes", logoSrc: "/logos/startimes-logo.jpg" },
 ];
 
 export default function TvPage() {

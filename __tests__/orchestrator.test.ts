@@ -97,10 +97,11 @@ describe('TransactionOrchestrator', () => {
 
       expect(tx.id).toBe('new-tx');
       
-      const insertCall = mockBuilder.insert.mock.calls[0][0];
-      expect(insertCall.provider_cost).toBe(95); // 95% of 100
-      expect(insertCall.profit).toBe(5); // 100 - 95
-      expect(insertCall.status).toBe('CREATED');
+      expect(mockBuilder.insert).toHaveBeenCalledWith(expect.objectContaining({
+        provider_cost: 95,
+        profit: 5,
+        status: 'CREATED'
+      }));
     });
   });
 
@@ -127,9 +128,10 @@ describe('TransactionOrchestrator', () => {
 
       await expect(orchestrator.updatePaymentState('tx-1', 'PAYMENT_CONFIRMED', 'MPESA123')).resolves.not.toThrow();
       
-      const updateCall = mockBuilder.update.mock.calls[0][0];
-      expect(updateCall.status).toBe('PAYMENT_CONFIRMED');
-      expect(updateCall.payment_reference).toBe('MPESA123');
+      expect(mockBuilder.update).toHaveBeenCalledWith(expect.objectContaining({
+        status: 'PAYMENT_CONFIRMED',
+        payment_reference: 'MPESA123'
+      }));
     });
   });
 
@@ -156,8 +158,9 @@ describe('TransactionOrchestrator', () => {
 
       await expect(orchestrator.authorizeVending('tx-1')).resolves.not.toThrow();
 
-      const updateCall = mockBuilder.update.mock.calls[0][0];
-      expect(updateCall.status).toBe('VENDING_PENDING');
+      expect(mockBuilder.update).toHaveBeenCalledWith(expect.objectContaining({
+        status: 'VENDING_PENDING'
+      }));
     });
   });
 });

@@ -165,7 +165,7 @@ export default async function TransactionDetail({ params }: { params: Promise<{ 
       </div>
 
       {/* Webhooks / API Events for Debugging */}
-      {(kyandaEvents?.length > 0 || webhooks?.length > 0) && (
+      {(((kyandaEvents?.length ?? 0) > 0) || ((webhooks?.length ?? 0) > 0)) && (
         <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-6 shadow-sm">
           <h3 className="text-lg font-semibold text-white mb-4">Raw Provider Events</h3>
           <div className="space-y-4">

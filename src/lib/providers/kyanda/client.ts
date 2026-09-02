@@ -46,7 +46,7 @@ export class KyandaClient {
 
     for (let attempt = 1; attempt <= retries + 1; attempt++) {
       try {
-        console.log(`[KyandaClient] Request ${requestId} (Attempt ${attempt}): POST ${url}`, this.sanitizeLog(payload));
+        console.log(`[KyandaClient] Request ${requestId} (Attempt ${attempt}): POST ${url}`);
 
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), timeout);
@@ -70,7 +70,7 @@ export class KyandaClient {
         }
 
         const responseData = await response.json();
-        console.log(`[KyandaClient] Response ${requestId}:`, responseData);
+        console.log(`[KyandaClient] Response ${requestId}: status=${responseData.status_code || 'unknown'}`);
 
         // Check for application level errors
         if (responseData.status_code && responseData.status_code !== '0000' && responseData.status_code !== '1100') {

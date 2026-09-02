@@ -120,22 +120,22 @@ export default function Home() {
         
         <div className="flex gap-8 items-center justify-center flex-wrap opacity-60 grayscale hover:grayscale-0 transition-all duration-500">
           <div className="w-24 h-12 relative">
-            <Image src="/logos/safaricom logo.png" alt="Safaricom" fill className="object-contain" sizes="96px" />
+            <Image src="/logos/safaricom-logo.png" alt="Safaricom" fill className="object-contain" sizes="96px" />
           </div>
           <div className="w-24 h-12 relative">
-            <Image src="/logos/airtel logo.jpg" alt="Airtel" fill className="object-contain" sizes="96px" />
+            <Image src="/logos/airtel-logo.jpg" alt="Airtel" fill className="object-contain" sizes="96px" />
           </div>
           <div className="w-24 h-12 relative">
-            <Image src="/logos/telcom logo.png" alt="Telkom" fill className="object-contain" sizes="96px" />
+            <Image src="/logos/telcom-logo.png" alt="Telkom" fill className="object-contain" sizes="96px" />
           </div>
           <div className="w-24 h-12 relative">
-            <Image src="/logos/kenya power logo.jpg" alt="KPLC" fill className="object-contain" sizes="96px" />
+            <Image src="/logos/kenya-power-logo.jpg" alt="KPLC" fill className="object-contain" sizes="96px" />
           </div>
           <div className="w-24 h-12 relative">
-            <Image src="/logos/dstv logo.jpg" alt="DStv" fill className="object-contain" sizes="96px" />
+            <Image src="/logos/dstv-logo.jpg" alt="DStv" fill className="object-contain" sizes="96px" />
           </div>
           <div className="w-24 h-12 relative">
-            <Image src="/logos/Gotv logo.png" alt="GOtv" fill className="object-contain" sizes="96px" />
+            <Image src="/logos/gotv-logo.png" alt="GOtv" fill className="object-contain" sizes="96px" />
           </div>
         </div>
       </section>

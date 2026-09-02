@@ -11,11 +11,11 @@ interface NetworkOption {
 }
 
 const networks: NetworkOption[] = [
-  { id: "Safaricom", name: "Safaricom", logoSrc: "/logos/safaricom logo.png" },
-  { id: "Airtel", name: "Airtel", logoSrc: "/logos/airtel logo.jpg" },
-  { id: "Telkom", name: "Telkom", logoSrc: "/logos/telcom logo.png" },
-  { id: "Equitel", name: "Equitel", logoSrc: "/logos/Equitel logo.jpg" },
-  { id: "Faiba", name: "Faiba", logoSrc: "/logos/Faiba logo.png" },
+  { id: "Safaricom", name: "Safaricom", logoSrc: "/logos/safaricom-logo.png" },
+  { id: "Airtel", name: "Airtel", logoSrc: "/logos/airtel-logo.jpg" },
+  { id: "Telkom", name: "Telkom", logoSrc: "/logos/telcom-logo.png" },
+  { id: "Equitel", name: "Equitel", logoSrc: "/logos/equitel-logo.jpg" },
+  { id: "Faiba", name: "Faiba", logoSrc: "/logos/faiba-logo.png" },
 ];
 
 interface NetworkSelectorProps {
