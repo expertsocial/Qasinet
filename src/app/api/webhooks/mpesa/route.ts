@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
 
     if (fetchError || !tx) {
       console.error('[M-PESA Webhook] Transaction not found for CheckoutRequestID:', CheckoutRequestID);
+      console.error('[M-PESA Webhook] Full payload was:', JSON.stringify(stkCallback));
       // Even if not found, we return 200 so Daraja stops retrying
       return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
     }
