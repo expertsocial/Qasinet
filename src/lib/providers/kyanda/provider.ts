@@ -80,7 +80,6 @@ export class KyandaProvider {
       telco,
       initiatorPhone,
       signature,
-      callbackUrl: process.env.KYANDA_CALLBACK_URL,
       callbackURL: process.env.KYANDA_CALLBACK_URL
     };
 
@@ -114,7 +113,6 @@ export class KyandaProvider {
       telco,
       initiatorPhone,
       signature,
-      callbackUrl: process.env.KYANDA_CALLBACK_URL,
       callbackURL: process.env.KYANDA_CALLBACK_URL
     };
 

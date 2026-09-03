@@ -64,13 +64,19 @@ export class KyandaClient {
 
         clearTimeout(id);
 
-        if (!response.ok) {
-          // If response is not ok (e.g. 500), we throw to trigger a retry
-          throw new Error(`HTTP Error: ${response.status} ${response.statusText}`);
+        let responseData: any = null;
+        try {
+          responseData = await response.json();
+        } catch (e) {
+          // not json
         }
 
-        const responseData = await response.json();
-        console.log(`[KyandaClient] Response ${requestId}: status=${responseData.status_code || 'unknown'}`);
+        if (!response.ok) {
+          const errMsg = responseData ? (responseData.transactiontxt || responseData.message || JSON.stringify(responseData)) : response.statusText;
+          throw new Error(`HTTP Error: ${response.status} ${errMsg}`);
+        }
+
+        console.log(`[KyandaClient] Response ${requestId}: status=${responseData?.status_code || 'unknown'}`);
 
         // Check for application level errors
         if (responseData.status_code && responseData.status_code !== '0000' && responseData.status_code !== '1100') {
