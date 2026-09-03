@@ -143,7 +143,8 @@ export class TransactionOrchestrator {
   public async updatePaymentState(
     transactionId: string, 
     newState: 'PAYMENT_PENDING' | 'PAYMENT_CONFIRMED' | 'PAYMENT_FAILED',
-    paymentRef?: string
+    paymentRef?: string,
+    failureReason?: string
   ) {
     const { data: tx, error } = await this.supabase
       .from('transactions')
@@ -162,6 +163,9 @@ export class TransactionOrchestrator {
     const updatePayload: any = { status: newState };
     if (paymentRef) {
       updatePayload.payment_reference = paymentRef;
+    }
+    if (failureReason) {
+      updatePayload.failure_reason = failureReason;
     }
 
     const { error: updateError } = await this.supabase

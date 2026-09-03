@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     // 2. Handle Failed Payment
     if (ResultCode !== 0) {
       console.log(`[M-PESA Webhook] Payment failed for ${tx.id}: ${ResultDesc}`);
-      await orchestrator.updatePaymentState(tx.id, 'PAYMENT_FAILED', CheckoutRequestID);
+      await orchestrator.updatePaymentState(tx.id, 'PAYMENT_FAILED', CheckoutRequestID, ResultDesc);
       return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
     }
 

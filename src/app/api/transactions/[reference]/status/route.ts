@@ -43,7 +43,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ refe
 
     const { data: tx, error } = await supabase
       .from('transactions')
-      .select('id, status, kyanda_reference, updated_at')
+      .select('id, status, kyanda_reference, updated_at, failure_reason')
       .eq('qsn_reference', reference)
       .single();
 
@@ -94,6 +94,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ refe
     return NextResponse.json({
       state: currentStatus,
       providerRef: kyandaRef,
+      message: tx.failure_reason,
       // If we have a successful transaction, we could fetch and attach the token/receipt data here
       // For now, we rely on the DB state. The frontend handles token extraction if needed.
     }, { status: 200 });
