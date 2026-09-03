@@ -14,6 +14,11 @@ export async function GET() {
       { shortcode: '4184501', partyB: '4184501', type: 'CustomerPayBillOnline', desc: 'Till as Paybill' }
     ];
 
+    const activeEnv = {
+      MPESA_SHORTCODE: process.env.MPESA_SHORTCODE || 'MISSING',
+      MPESA_TILL_NUMBER: process.env.MPESA_TILL_NUMBER || 'MISSING'
+    };
+
     // 1. Get Token
     const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
     const tokenRes = await fetch('https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials', {
@@ -72,7 +77,7 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({ results });
+    return NextResponse.json({ activeEnv, results });
 
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
