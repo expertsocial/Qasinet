@@ -89,55 +89,68 @@ export async function POST(req: NextRequest) {
     // 4. Authorize Vending
     await orchestrator.authorizeVending(tx.id);
 
-    // 5. EVENT-DRIVEN VENDING (Inline execution)
-    // We execute Kyanda synchronously here so the UI gets instant feedback.
-    try {
-      const kyandaProvider = new KyandaProvider();
-      const services: any = tx.services;
-      const serviceSlug = services?.slug || (Array.isArray(services) && services[0]?.slug) || '';
-      const serviceType = services?.type || (Array.isArray(services) && services[0]?.type) || '';
-      const telco = getKyandaTelco(serviceSlug);
-      
-      // We use the admin/initiator phone number from env, or a fallback dummy for testing
-      const initiatorPhone = process.env.KYANDA_INITIATOR_PHONE || '0700000000';
+    // 5. EVENT-DRIVEN VENDING (Background execution)
+    // Execute vending without awaiting, so M-PESA gets an instant 200 OK.
+    const runVending = async () => {
+      try {
+        const kyandaProvider = new KyandaProvider();
+        const services: any = tx.services;
+        const serviceSlug = services?.slug || (Array.isArray(services) && services[0]?.slug) || '';
+        const serviceType = services?.type || (Array.isArray(services) && services[0]?.type) || '';
+        const telco = getKyandaTelco(serviceSlug);
+        
+        const initiatorPhone = process.env.KYANDA_INITIATOR_PHONE || '0700000000';
 
-      let vendingResult: { merchant_reference: string };
+        let vendingResult: { merchant_reference: string };
 
-      if (serviceType === 'airtime') {
-        vendingResult = await kyandaProvider.buyAirtime(
-          tx.amount,
-          tx.destination,
-          telco,
-          initiatorPhone
-        );
-      } else {
-        // Bills / TV / Electricity
-        vendingResult = await kyandaProvider.payBill(
-          tx.amount,
-          tx.destination,
-          telco,
-          initiatorPhone
-        );
+        if (serviceType === 'airtime') {
+          vendingResult = await kyandaProvider.buyAirtime(
+            tx.amount,
+            tx.destination,
+            telco,
+            initiatorPhone
+          );
+        } else {
+          vendingResult = await kyandaProvider.payBill(
+            tx.amount,
+            tx.destination,
+            telco,
+            initiatorPhone
+          );
+        }
+
+        console.log(`[M-PESA Webhook] Vending initiated for ${tx.id}, Kyanda Ref: ${vendingResult.merchant_reference}`);
+        
+        await supabaseService
+          .from('transactions')
+          .update({ kyanda_reference: vendingResult.merchant_reference })
+          .eq('id', tx.id);
+
+      } catch (vendingError: any) {
+        console.error(`[M-PESA Webhook] Background vending failed for ${tx.id}:`, vendingError.message);
+        await supabaseService
+          .from('transactions')
+          .update({ 
+            status: 'VENDING_FAILED', 
+            failure_reason: vendingError.message || 'Kyanda API failed' 
+          })
+          .eq('id', tx.id);
       }
+    };
 
-      console.log(`[M-PESA Webhook] Vending initiated for ${tx.id}, Kyanda Ref: ${vendingResult.merchant_reference}`);
-      
-      // Save the Kyanda reference. The reconciliation cron OR the Kyanda Webhook will finalize it later.
-      // Wait, can we finalize instantly if Kyanda returns success?
-      // Kyanda returns a merchant_reference. The actual status requires polling or Kyanda callback.
-      // So we just update the transaction with the kyanda_reference.
-      await supabaseService
-        .from('transactions')
-        .update({ kyanda_reference: vendingResult.merchant_reference })
-        .eq('id', tx.id);
-
-    } catch (vendingError: any) {
-      console.error(`[M-PESA Webhook] Inline vending failed for ${tx.id}:`, vendingError.message);
-      // Even if vending request failed, payment was successful.
-      // A background cron can sweep VENDING_PENDING transactions without kyanda_reference and retry them.
+    // Use Next.js 'after' if available, otherwise fallback to floating promise (safe in Node.js runtime)
+    try {
+      const { after } = require('next/server');
+      if (typeof after === 'function') {
+        after(runVending);
+      } else {
+        runVending().catch(console.error);
+      }
+    } catch (e) {
+      runVending().catch(console.error);
     }
 
-    // Acknowledge Daraja
+    // Acknowledge Daraja immediately
     return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
 
   } catch (error: any) {

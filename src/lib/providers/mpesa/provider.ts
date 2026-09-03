@@ -4,11 +4,13 @@ export class MpesaDarajaProvider {
   private client: MpesaDarajaClient;
   private passkey: string;
   private shortcode: string;
+  private tillNumber: string;
 
   constructor() {
     this.client = new MpesaDarajaClient();
     this.passkey = process.env.MPESA_PASSKEY || '';
     this.shortcode = process.env.MPESA_SHORTCODE || '';
+    this.tillNumber = process.env.MPESA_TILL_NUMBER || this.shortcode;
 
     if (!this.passkey || !this.shortcode) {
       console.warn("MpesaDarajaProvider initialized without MPESA_PASSKEY or MPESA_SHORTCODE.");
@@ -81,7 +83,7 @@ export class MpesaDarajaProvider {
       TransactionType: "CustomerBuyGoodsOnline", // Using CustomerBuyGoodsOnline because the user's shortcode is a Till Number
       Amount: Math.ceil(amount), // Daraja expects integers
       PartyA: formattedPhone,
-      PartyB: this.shortcode,
+      PartyB: this.tillNumber,
       PhoneNumber: formattedPhone,
       CallBackURL: this.getCallbackUrl(),
       AccountReference: accountReference.substring(0, 12), // Max 12 chars allowed by Daraja for AccountReference sometimes, but we'll substring to be safe

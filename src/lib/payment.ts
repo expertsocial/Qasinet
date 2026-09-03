@@ -125,6 +125,7 @@ export class PaymentService {
 
     return { 
       state: paymentState,
+      message: data.message,
       providerRef: data.providerRef,
       receiptData: data.receiptData
     };
