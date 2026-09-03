@@ -57,7 +57,7 @@ export default function WaterPage() {
   const selectedProviderData = ACTIVE_PROVIDERS.find(p => p.id === provider);
 
   const orderPayload: OrderPayload = {
-    serviceId: "water",
+    serviceId: provider || "water",
     serviceName: `${selectedProviderData?.name || "Water"} Bill`,
     provider: selectedProviderData?.name || provider || "",
     destination: accountNumber,

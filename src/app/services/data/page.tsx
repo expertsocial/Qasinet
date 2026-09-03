@@ -63,7 +63,7 @@ export default function DataPage() {
   const isStep3Valid = bundle !== null;
 
   const orderPayload: OrderPayload = {
-    serviceId: "data",
+    serviceId: network ? `${network.toLowerCase()}-airtime` : "data",
     serviceName: "Data Bundle",
     provider: network || "",
     destination: phone,

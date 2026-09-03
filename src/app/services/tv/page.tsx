@@ -59,7 +59,7 @@ export default function TvPage() {
   const selectedProviderData = TV_PROVIDERS.find(p => p.id === provider);
 
   const orderPayload: OrderPayload = {
-    serviceId: "tv",
+    serviceId: provider || "tv",
     serviceName: "TV Subscription",
     provider: selectedProviderData?.name || provider || "",
     destination: accountNumber,

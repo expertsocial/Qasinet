@@ -47,7 +47,7 @@ export default function ElectricityPage() {
   };
 
   const orderPayload: OrderPayload = {
-    serviceId: "electricity",
+    serviceId: `kplc-${type.toLowerCase()}`,
     serviceName: `KPLC ${type}`,
     provider: "Kenya Power",
     destination: accountNumber,

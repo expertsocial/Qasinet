@@ -135,6 +135,6 @@ export async function POST(req: NextRequest) {
       };
       return NextResponse.json(error.toClientResponse(), { status: statusMap[error.category] || 500 });
     }
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error', debug: error instanceof Error ? error.message : String(error) }, { status: 500 });
   }
 }

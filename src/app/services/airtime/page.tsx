@@ -29,7 +29,7 @@ export default function AirtimePage() {
   const isStep3Valid = amount >= 5 && amount <= 10000;
 
   const orderPayload: OrderPayload = {
-    serviceId: "airtime",
+    serviceId: network ? `${network.toLowerCase()}-airtime` : "airtime",
     serviceName: "Airtime",
     provider: network || "",
     destination: phone,
