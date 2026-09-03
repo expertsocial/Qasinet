@@ -36,7 +36,7 @@ export class MpesaDarajaClient {
   constructor() {
     this.consumerKey = process.env.MPESA_CONSUMER_KEY || '';
     this.consumerSecret = process.env.MPESA_CONSUMER_SECRET || '';
-    this.isProduction = process.env.NEXT_PUBLIC_ENVIRONMENT === 'production';
+    this.isProduction = process.env.MPESA_ENVIRONMENT === 'production';
   }
 
   private getBaseUrl(): string {
