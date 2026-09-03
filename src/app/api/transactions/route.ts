@@ -4,6 +4,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { initTransactionSchema } from '@/lib/validations/transaction';
 import { TransactionOrchestrator } from '@/lib/services/orchestrator';
 import { QasiNetError } from '@/lib/errors';
+import { MpesaDarajaProvider } from '@/lib/providers/mpesa/provider';
 
 // Basic in-memory rate limiter (Warning: Resets on serverless cold starts)
 const rateLimitMap = new Map<string, { count: number, resetAt: number }>();
@@ -71,6 +72,37 @@ export async function POST(req: NextRequest) {
       userId: user?.id,
       idempotencyKey
     });
+
+    // 3. Trigger Daraja STK Push
+    try {
+      const mpesaProvider = new MpesaDarajaProvider();
+      
+      // Use user's registered phone, or guest phone, or fallback to destination if it's a phone top-up
+      const payingPhone = user?.phone || guestPhone || destination; 
+      
+      const stkResponse = await mpesaProvider.initiateSTKPush(
+        payingPhone,
+        transaction.selling_price,
+        transaction.qsn_reference,
+        `QasiNet ${serviceSlug}`
+      );
+      
+      // 4. Update transaction with the checkout request ID
+      await orchestrator.updatePaymentState(
+        transaction.id, 
+        'PAYMENT_PENDING', 
+        stkResponse.CheckoutRequestID
+      );
+    } catch (stkError: any) {
+      console.error('STK Push failed:', stkError?.message);
+      // We log the error, but still return the transaction so UI can handle it gracefully.
+      // E.g., showing a failure message or retry button.
+      await orchestrator.updatePaymentState(
+        transaction.id, 
+        'PAYMENT_FAILED'
+      );
+      return NextResponse.json({ error: 'STK Push failed to initiate' }, { status: 502 });
+    }
 
     return NextResponse.json({
       transaction: {
