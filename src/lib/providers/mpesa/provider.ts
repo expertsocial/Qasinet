@@ -78,7 +78,7 @@ export class MpesaDarajaProvider {
       BusinessShortCode: this.shortcode,
       Password: password,
       Timestamp: timestamp,
-      TransactionType: "CustomerPayBillOnline", // or CustomerBuyGoodsOnline depending on till vs paybill
+      TransactionType: "CustomerBuyGoodsOnline", // Using CustomerBuyGoodsOnline because the user's shortcode is a Till Number
       Amount: Math.ceil(amount), // Daraja expects integers
       PartyA: formattedPhone,
       PartyB: this.shortcode,
