@@ -80,6 +80,8 @@ export class KyandaProvider {
       telco,
       initiatorPhone,
       signature,
+      callbackUrl: process.env.KYANDA_CALLBACK_URL,
+      callbackURL: process.env.KYANDA_CALLBACK_URL
     };
 
     if (productCode) {
@@ -105,13 +107,15 @@ export class KyandaProvider {
       this.securityKey
     );
 
-    const payload = {
+    const payload: any = {
       MerchantID: merchantId,
       account,
       amount: String(amount),
       telco,
       initiatorPhone,
       signature,
+      callbackUrl: process.env.KYANDA_CALLBACK_URL,
+      callbackURL: process.env.KYANDA_CALLBACK_URL
     };
 
     return this.client.request<{ merchant_reference: string }>('/billing/v1/bill/create', payload);
