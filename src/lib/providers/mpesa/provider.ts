@@ -31,7 +31,10 @@ export class MpesaDarajaProvider {
   }
 
   private getCallbackUrl(): string {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
+    let baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    if (!baseUrl) {
+      baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
+    }
     // Ensure we don't end up with double slashes
     const sanitizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
     return `${sanitizedBase}/api/webhooks/mpesa`;
@@ -58,6 +61,14 @@ export class MpesaDarajaProvider {
     }
     if (formattedPhone.startsWith('0')) {
       formattedPhone = '254' + formattedPhone.substring(1);
+    }
+    // Handle 9-digit numbers like 712345678 or 112345678
+    if (formattedPhone.length === 9 && (formattedPhone.startsWith('7') || formattedPhone.startsWith('1'))) {
+      formattedPhone = '254' + formattedPhone;
+    }
+
+    if (amount <= 0 || isNaN(amount)) {
+      throw new Error(`Invalid amount: ${amount}`);
     }
 
     const timestamp = this.generateTimestamp();

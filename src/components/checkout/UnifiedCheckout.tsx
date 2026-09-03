@@ -43,10 +43,10 @@ export function UnifiedCheckout({ order, onEditDetails, onSuccess }: UnifiedChec
       // Start polling status
       attemptRef.current = 0;
       pollStatus(initResult.reference);
-    } catch (err) {
+    } catch (err: any) {
       setPhase("PAYMENT");
       setPaymentState("FAILED");
-      setErrorMessage("Could not initiate payment. Please try again later.");
+      setErrorMessage(err.message || "Could not initiate payment. Please try again later.");
     }
   };
 

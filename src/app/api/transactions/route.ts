@@ -46,6 +46,9 @@ export async function POST(req: NextRequest) {
 
     // A real client should pass an idempotency key (e.g. uuid) in headers or body.
     const idempotencyKey = req.headers.get('x-idempotency-key') || `${destination}-${amount}-${Date.now()}`;
+    const correlationId = `QSN-PAY-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+    console.log(`[${correlationId}] Initiating transaction for ${serviceSlug} to ${destination}`);
 
     // Get user session to link transaction to user
     const supabaseSession = await createClient();
@@ -94,14 +97,20 @@ export async function POST(req: NextRequest) {
         stkResponse.CheckoutRequestID
       );
     } catch (stkError: any) {
-      console.error('STK Push failed:', stkError?.message);
+      console.error(`[${correlationId}] STK Push failed:`, stkError?.message);
       // We log the error, but still return the transaction so UI can handle it gracefully.
       // E.g., showing a failure message or retry button.
       await orchestrator.updatePaymentState(
         transaction.id, 
         'PAYMENT_FAILED'
       );
-      return NextResponse.json({ error: 'STK Push failed to initiate' }, { status: 502 });
+      return NextResponse.json({ 
+        success: false,
+        error: {
+          code: 'MPESA_STK_FAILED',
+          message: stkError?.message || 'STK Push failed to initiate'
+        }
+      }, { status: 502 });
     }
 
     return NextResponse.json({

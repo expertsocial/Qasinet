@@ -93,8 +93,16 @@ export class MpesaDarajaClient {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[Daraja] API Error on ${endpoint}:`, errorText);
-      throw new Error(`Daraja API request failed with status: ${response.status}`);
+      let parsedMessage = '';
+      try {
+        const errorJson = JSON.parse(errorText);
+        parsedMessage = errorJson.errorMessage || errorJson.error_description || '';
+      } catch (e) {
+        // Not JSON
+      }
+      const detailedMessage = parsedMessage ? `Daraja API Error: ${parsedMessage}` : `Daraja API request failed with status: ${response.status}`;
+      console.error(`[Daraja] API Error on ${endpoint}:`, detailedMessage, 'Raw:', errorText);
+      throw new Error(detailedMessage);
     }
 
     return response.json();
