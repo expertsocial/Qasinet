@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { QasiNetError } from '../errors';
+import { sendReceiptEmail } from './email';
 
 export type TransactionStatus =
   | 'CREATED'
@@ -247,6 +248,51 @@ export class TransactionOrchestrator {
         transaction_id: transactionId,
         receipt_number: receiptNum
       });
+
+      // Background Email Dispatch for registered users with an email
+      (async () => {
+        try {
+          const { data: txInfo } = await this.supabase
+            .from('transactions')
+            .select('qsn_reference, amount, destination, payment_reference, kyanda_reference, created_at, user_id, services(name, type)')
+            .eq('id', transactionId)
+            .single();
+
+          if (txInfo?.user_id) {
+            const { data: profile } = await this.supabase
+              .from('profiles')
+              .select('email, full_name')
+              .eq('id', txInfo.user_id)
+              .maybeSingle();
+
+            const targetEmail = profile?.email;
+            if (targetEmail) {
+              const service: any = txInfo.services;
+              const serviceName = service?.name || (Array.isArray(service) ? service[0]?.name : 'Utility Service');
+              const serviceType = service?.type || (Array.isArray(service) ? service[0]?.type : undefined);
+
+              await sendReceiptEmail({
+                to: targetEmail,
+                customerName: profile?.full_name,
+                reference: txInfo.qsn_reference,
+                amount: txInfo.amount,
+                serviceName,
+                serviceType,
+                destination: txInfo.destination,
+                paymentReference: txInfo.payment_reference,
+                providerReference: providerRef || txInfo.kyanda_reference,
+                date: txInfo.created_at,
+                token: metadata?.token,
+                units: metadata?.units,
+                accountName: metadata?.accountName,
+              });
+            }
+          }
+        } catch (err: any) {
+          console.error('[Automated Email Dispatch Error]:', err?.message || err);
+        }
+      })();
     }
   }
 }
+
