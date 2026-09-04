@@ -15,31 +15,36 @@ export async function POST(req: Request) {
   try {
     const payload = await req.json();
 
-    const { transactionRef, Status, status, status_code, message, signature } = payload;
-    const providerReference = transactionRef;
-    const finalStatus = Status || status; 
+    const { transactionRef, merchant_reference, reference, Status, status, status_code, message, signature } = payload;
+    const providerReference = transactionRef || merchant_reference || reference;
+    const finalStatus = Status || status || (status_code === '0000' || status_code === '1100' ? 'Success' : 'Failed'); 
 
     if (!providerReference) {
-      return NextResponse.json({ status: 'ignored', message: 'Missing transactionRef' }, { status: 200 });
+      console.warn('[Kyanda Webhook] Missing transaction reference in payload:', payload);
+      return NextResponse.json({ status: 'ignored', message: 'Missing transaction reference' }, { status: 200 });
     }
 
-    // 1. Signature Verification
-    if (!signature) {
-      console.warn(`Webhook missing signature for ref: ${providerReference}`);
-      return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
-    }
+    // 1. Signature or Merchant Verification
+    if (signature) {
+      const isValidSignature = KyandaSignatureEngine.verifyCallbackSignature(
+        kyandaMerchantId,
+        providerReference,
+        finalStatus,
+        signature,
+        kyandaSecurityKey
+      );
 
-    const isValidSignature = KyandaSignatureEngine.verifyCallbackSignature(
-      kyandaMerchantId,
-      providerReference,
-      finalStatus,
-      signature,
-      kyandaSecurityKey
-    );
-
-    if (!isValidSignature) {
-      console.error(`Invalid webhook signature for ref: ${providerReference}`);
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+      if (!isValidSignature) {
+        console.error(`[Kyanda Webhook] Invalid webhook signature for ref: ${providerReference}`);
+        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+      }
+    } else {
+      // If no signature is provided in IPN, verify MerchantID if present
+      const payloadMerchantId = payload.MerchantID || payload.merchant_id || payload.merchantId;
+      if (payloadMerchantId && kyandaMerchantId && payloadMerchantId.toLowerCase() !== kyandaMerchantId.toLowerCase()) {
+        console.error(`[Kyanda Webhook] Unauthorized merchant ID: ${payloadMerchantId}`);
+        return NextResponse.json({ error: 'Unauthorized merchant' }, { status: 401 });
+      }
     }
 
     // 2. Idempotency Check
@@ -55,7 +60,7 @@ export async function POST(req: Request) {
       if (insertError.code === '23505') {
         return NextResponse.json({ status: 'success', message: 'Duplicate webhook ignored' }, { status: 200 });
       }
-      console.error('Failed to log webhook_events. Continuing processing safely.');
+      console.error('[Kyanda Webhook] Failed to log webhook_events. Continuing processing safely.');
     }
 
     // 3. Lookup QasiNet Transaction
