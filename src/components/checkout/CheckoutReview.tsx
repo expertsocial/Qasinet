@@ -86,14 +86,23 @@ export function CheckoutReview({
               <Smartphone className="w-3.5 h-3.5 text-primary" />
               Service Recipient / Destination
             </span>
-            <span className={cn("px-2 py-0.5 rounded-full text-[11px] font-bold border", destCarrier.badgeBg, destCarrier.borderBg)}>
-              {destCarrier.displayName}
+            <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border shadow-sm", destCarrier.badgeBg, destCarrier.borderBg)}>
+              <span className="relative w-3.5 h-3.5 rounded-full overflow-hidden bg-white shrink-0 inline-block">
+                <Image 
+                  src={destCarrier.logoSrc} 
+                  alt={destCarrier.displayName} 
+                  fill 
+                  sizes="14px"
+                  className="object-contain p-0.5" 
+                />
+              </span>
+              <span>{destCarrier.displayName}</span>
             </span>
           </div>
 
           <div className="flex items-center justify-between text-sm">
             <div>
-              <p className="text-xs text-muted-foreground">{order.provider || order.serviceName}</p>
+              <p className="text-xs text-muted-foreground font-medium">{order.provider || destCarrier.displayName} ({order.serviceName})</p>
               <p className="text-base font-black font-mono tracking-wide text-foreground">{order.destination}</p>
             </div>
             {order.metadata?.package && (

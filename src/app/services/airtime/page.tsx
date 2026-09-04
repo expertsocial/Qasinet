@@ -1,16 +1,18 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import { NetworkSelector, Network } from "@/components/services/NetworkSelector";
 import { PhoneInput } from "@/components/services/PhoneInput";
 import { AmountSelector } from "@/components/services/AmountSelector";
 import { UnifiedCheckout } from "@/components/checkout/UnifiedCheckout";
 import { OrderPayload } from "@/lib/payment";
 import { Button, buttonVariants } from "@/components/ui/Button";
-import { ArrowLeft, ArrowRight, Smartphone } from "lucide-react";
+import { ArrowLeft, ArrowRight, Smartphone, RefreshCw, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { isValidKenyanPhone } from "@/lib/validation";
+import { detectCarrier } from "@/lib/carrier";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -24,14 +26,24 @@ export default function AirtimePage() {
   const handleNext = () => setStep((s) => Math.min(s + 1, 5) as Step);
   const handleBack = () => setStep((s) => Math.max(s - 1, 1) as Step);
 
-  const isStep1Valid = network !== null;
+  const detectedCarrier = detectCarrier(phone);
+  const effectiveNetwork: Network = (
+    detectedCarrier.name === "AIRTEL" ? "Airtel" :
+    detectedCarrier.name === "TELKOM" ? "Telkom" :
+    detectedCarrier.name === "EQUITEL" ? "Equitel" :
+    detectedCarrier.name === "FAIBA" ? "Faiba" :
+    detectedCarrier.name === "SAFARICOM" ? "Safaricom" :
+    (network || "Safaricom")
+  );
+
+  const isStep1Valid = network !== null || detectedCarrier.name !== "UNKNOWN";
   const isStep2Valid = isPhoneValid;
   const isStep3Valid = amount >= 5 && amount <= 10000;
 
   const orderPayload: OrderPayload = {
-    serviceId: network ? `${network.toLowerCase()}-airtime` : "airtime",
-    serviceName: "Airtime",
-    provider: network || "",
+    serviceId: `${effectiveNetwork.toLowerCase()}-airtime`,
+    serviceName: `${effectiveNetwork} Airtime`,
+    provider: effectiveNetwork,
     destination: phone,
     amount: amount,
     fees: 0,
@@ -58,7 +70,7 @@ export default function AirtimePage() {
               </div>
               <h1 className="text-3xl font-bold">Buy Airtime</h1>
             </div>
-            <p className="text-muted-foreground">Instant airtime top-up for all networks.</p>
+            <p className="text-muted-foreground">Instant airtime top-up for Safaricom, Airtel, Telkom & Faiba.</p>
           </div>
         )}
 
@@ -84,12 +96,12 @@ export default function AirtimePage() {
         {step === 1 && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="bg-card border border-border/50 rounded-3xl p-6 md:p-8 shadow-sm">
-              <h2 className="text-xl font-semibold mb-6">Select Network</h2>
+              <h2 className="text-xl font-semibold mb-2">Select Network</h2>
+              <p className="text-xs text-muted-foreground mb-6">Choose your network or type your phone number in next step for auto-detection.</p>
               <NetworkSelector 
-                selectedNetwork={network} 
+                selectedNetwork={network || (detectedCarrier.name !== "UNKNOWN" ? effectiveNetwork : null)} 
                 onSelect={(net) => {
                   setNetwork(net);
-                  // Optional: auto-advance
                   setTimeout(handleNext, 300);
                 }} 
               />
@@ -105,16 +117,60 @@ export default function AirtimePage() {
         {/* Step 2: Phone */}
         {step === 2 && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-card border border-border/50 rounded-3xl p-6 md:p-8 shadow-sm">
-              <h2 className="text-xl font-semibold mb-2">Recipient Details</h2>
-              <p className="text-sm text-muted-foreground mb-6">Enter the phone number to top up.</p>
+            <div className="bg-card border border-border/50 rounded-3xl p-6 md:p-8 shadow-sm space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold mb-1">Recipient Details</h2>
+                <p className="text-sm text-muted-foreground">Enter the phone number to receive the airtime.</p>
+              </div>
               
               <PhoneInput 
                 value={phone} 
                 onChange={setPhone} 
-                onValidationChange={setIsPhoneValid} 
+                onValidationChange={setIsPhoneValid}
+                onCarrierChange={(c) => {
+                  if (c.name === "AIRTEL") setNetwork("Airtel");
+                  else if (c.name === "TELKOM") setNetwork("Telkom");
+                  else if (c.name === "EQUITEL") setNetwork("Equitel");
+                  else if (c.name === "FAIBA") setNetwork("Faiba");
+                  else if (c.name === "SAFARICOM") setNetwork("Safaricom");
+                }}
               />
+
+              {/* Active Network Preview Badge Card */}
+              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-secondary/40 border border-border/50">
+                <div className="flex items-center gap-3">
+                  <div className="relative w-8 h-8 rounded-lg overflow-hidden bg-white shrink-0 p-1 flex items-center justify-center border border-border/40">
+                    <Image 
+                      src={detectedCarrier.name !== "UNKNOWN" ? detectedCarrier.logoSrc : (network === "Airtel" ? "/logos/airtel-logo.jpg" : network === "Telkom" ? "/logos/telcom-logo.png" : "/logos/safaricom-logo.png")} 
+                      alt={effectiveNetwork} 
+                      fill 
+                      sizes="32px"
+                      className="object-contain p-0.5" 
+                    />
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground">Destination Carrier</span>
+                    <p className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                      {effectiveNetwork} Kenya
+                      {detectedCarrier.name !== "UNKNOWN" && (
+                        <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20">
+                          Auto-Detected
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+                >
+                  <RefreshCw className="w-3 h-3" /> Change
+                </button>
+              </div>
             </div>
+
             <div className="flex flex-col-reverse sm:flex-row justify-between gap-4">
               <Button onClick={handleBack} variant="outline" size="lg">
                 Back
@@ -133,8 +189,37 @@ export default function AirtimePage() {
         {/* Step 3: Amount */}
         {step === 3 && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Recipient summary banner */}
+            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-secondary/30 border border-border/40">
+              <div className="flex items-center gap-2.5">
+                <div className="relative w-6 h-6 rounded-md overflow-hidden bg-white shrink-0">
+                  <Image 
+                    src={detectedCarrier.name !== "UNKNOWN" ? detectedCarrier.logoSrc : (effectiveNetwork === "Airtel" ? "/logos/airtel-logo.jpg" : "/logos/safaricom-logo.png")} 
+                    alt={effectiveNetwork} 
+                    fill 
+                    sizes="24px"
+                    className="object-contain p-0.5" 
+                  />
+                </div>
+                <div className="text-xs">
+                  <span className="text-muted-foreground">Recipient: </span>
+                  <strong className="text-foreground font-mono">{phone}</strong>
+                  <span className={cn("ml-2 px-1.5 py-0.2 rounded text-[10px] font-bold border", detectedCarrier.badgeBg, detectedCarrier.borderBg)}>
+                    {effectiveNetwork}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStep(2)}
+                className="text-xs font-semibold text-primary hover:underline"
+              >
+                Edit
+              </button>
+            </div>
+
             <div className="bg-card border border-border/50 rounded-3xl p-6 md:p-8 shadow-sm">
-              <h2 className="text-xl font-semibold mb-6">How much airtime?</h2>
+              <h2 className="text-xl font-semibold mb-6">How much {effectiveNetwork} airtime?</h2>
               <AmountSelector 
                 value={amount} 
                 onChange={setAmount} 

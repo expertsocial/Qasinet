@@ -1,16 +1,18 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import { NetworkSelector, Network } from "@/components/services/NetworkSelector";
 import { PhoneInput } from "@/components/services/PhoneInput";
 import { BundleSelector, DataBundle } from "@/components/services/BundleSelector";
 import { UnifiedCheckout } from "@/components/checkout/UnifiedCheckout";
 import { OrderPayload } from "@/lib/payment";
 import { Button, buttonVariants } from "@/components/ui/Button";
-import { ArrowLeft, ArrowRight, Wifi } from "lucide-react";
+import { ArrowLeft, ArrowRight, Wifi, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { isValidKenyanPhone } from "@/lib/validation";
+import { detectCarrier } from "@/lib/carrier";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -29,22 +31,26 @@ const MOCK_BUNDLES: Record<string, DataBundle[]> = {
     { id: "saf-s-1", name: "Giga Bundle", allowance: "15 GB", validity: "30 Days", price: 2500, category: "Special" },
   ],
   Airtel: [
-    { id: "air-d-1", name: "Bamba Daily", allowance: "100 MB", validity: "24 Hours", price: 20, category: "Daily" },
-    { id: "air-w-1", name: "Bamba Weekly", allowance: "500 MB", validity: "7 Days", price: 100, category: "Weekly" },
-    { id: "air-m-1", name: "Bamba Monthly", allowance: "2 GB", validity: "30 Days", price: 500, category: "Monthly" },
+    { id: "air-d-1", name: "Bamba Daily 100MB", allowance: "100 MB", validity: "24 Hours", price: 20, category: "Daily" },
+    { id: "air-d-2", name: "Bamba Daily 1.5GB", allowance: "1.5 GB", validity: "24 Hours", price: 100, category: "Daily" },
+    { id: "air-w-1", name: "Bamba Weekly 500MB", allowance: "500 MB", validity: "7 Days", price: 100, category: "Weekly" },
+    { id: "air-w-2", name: "Bamba Weekly 2GB", allowance: "2 GB", validity: "7 Days", price: 250, category: "Weekly" },
+    { id: "air-m-1", name: "Bamba Monthly 2GB", allowance: "2 GB", validity: "30 Days", price: 500, category: "Monthly" },
+    { id: "air-m-2", name: "Bamba Monthly 6GB", allowance: "6 GB", validity: "30 Days", price: 1000, category: "Monthly" },
   ],
   Telkom: [
-    { id: "tel-d-1", name: "T-Kash Daily", allowance: "150 MB", validity: "24 Hours", price: 20, category: "Daily" },
-    { id: "tel-w-1", name: "T-Kash Weekly", allowance: "1 GB", validity: "7 Days", price: 100, category: "Weekly" },
+    { id: "tel-d-1", name: "T-Kash Daily 150MB", allowance: "150 MB", validity: "24 Hours", price: 20, category: "Daily" },
+    { id: "tel-w-1", name: "T-Kash Weekly 1GB", allowance: "1 GB", validity: "7 Days", price: 100, category: "Weekly" },
+    { id: "tel-m-1", name: "T-Kash Monthly 5GB", allowance: "5 GB", validity: "30 Days", price: 500, category: "Monthly" },
   ],
   Equitel: [
-    { id: "equ-d-1", name: "MyData Daily", allowance: "80 MB", validity: "24 Hours", price: 20, category: "Daily" },
-    { id: "equ-m-1", name: "MyData Monthly", allowance: "1.5 GB", validity: "30 Days", price: 500, category: "Monthly" },
+    { id: "equ-d-1", name: "MyData Daily 80MB", allowance: "80 MB", validity: "24 Hours", price: 20, category: "Daily" },
+    { id: "equ-m-1", name: "MyData Monthly 1.5GB", allowance: "1.5 GB", validity: "30 Days", price: 500, category: "Monthly" },
   ],
   Faiba: [
-    { id: "fai-d-1", name: "Faiba Daily", allowance: "1 GB", validity: "24 Hours", price: 50, category: "Daily" },
-    { id: "fai-w-1", name: "Faiba Weekly", allowance: "8 GB", validity: "7 Days", price: 300, category: "Weekly" },
-    { id: "fai-m-1", name: "Faiba Monthly", allowance: "25 GB", validity: "30 Days", price: 1000, category: "Monthly" },
+    { id: "fai-d-1", name: "Faiba Daily 1GB", allowance: "1 GB", validity: "24 Hours", price: 50, category: "Daily" },
+    { id: "fai-w-1", name: "Faiba Weekly 8GB", allowance: "8 GB", validity: "7 Days", price: 300, category: "Weekly" },
+    { id: "fai-m-1", name: "Faiba Monthly 25GB", allowance: "25 GB", validity: "30 Days", price: 1000, category: "Monthly" },
   ]
 };
 
@@ -58,14 +64,24 @@ export default function DataPage() {
   const handleNext = () => setStep((s) => Math.min(s + 1, 5) as Step);
   const handleBack = () => setStep((s) => Math.max(s - 1, 1) as Step);
 
-  const isStep1Valid = network !== null;
+  const detectedCarrier = detectCarrier(phone);
+  const effectiveNetwork: Network = (
+    detectedCarrier.name === "AIRTEL" ? "Airtel" :
+    detectedCarrier.name === "TELKOM" ? "Telkom" :
+    detectedCarrier.name === "EQUITEL" ? "Equitel" :
+    detectedCarrier.name === "FAIBA" ? "Faiba" :
+    detectedCarrier.name === "SAFARICOM" ? "Safaricom" :
+    (network || "Safaricom")
+  );
+
+  const isStep1Valid = network !== null || detectedCarrier.name !== "UNKNOWN";
   const isStep2Valid = isPhoneValid;
   const isStep3Valid = bundle !== null;
 
   const orderPayload: OrderPayload = {
-    serviceId: network ? `${network.toLowerCase()}-airtime` : "data",
-    serviceName: "Data Bundle",
-    provider: network || "",
+    serviceId: `${effectiveNetwork.toLowerCase()}-airtime`,
+    serviceName: `${effectiveNetwork} Data Bundle`,
+    provider: effectiveNetwork,
     destination: phone,
     amount: bundle?.price || 0,
     fees: 0,
@@ -76,7 +92,7 @@ export default function DataPage() {
     }
   };
 
-  const bundlesForNetwork = network ? MOCK_BUNDLES[network] || [] : [];
+  const bundlesForNetwork = MOCK_BUNDLES[effectiveNetwork] || MOCK_BUNDLES.Safaricom || [];
 
   return (
     <main className="min-h-screen bg-background pt-24 pb-16">
@@ -98,7 +114,7 @@ export default function DataPage() {
               </div>
               <h1 className="text-3xl font-bold">Buy Data Bundles</h1>
             </div>
-            <p className="text-muted-foreground">Stay connected with affordable internet packages.</p>
+            <p className="text-muted-foreground">Stay connected with affordable internet packages for all Kenyan networks.</p>
           </div>
         )}
 
@@ -124,12 +140,13 @@ export default function DataPage() {
         {step === 1 && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="bg-card border border-border/50 rounded-3xl p-6 md:p-8 shadow-sm">
-              <h2 className="text-xl font-semibold mb-6">Select Network</h2>
+              <h2 className="text-xl font-semibold mb-2">Select Network</h2>
+              <p className="text-xs text-muted-foreground mb-6">Choose your provider or enter your number in the next step for automatic carrier detection.</p>
               <NetworkSelector 
-                selectedNetwork={network} 
+                selectedNetwork={network || (detectedCarrier.name !== "UNKNOWN" ? effectiveNetwork : null)} 
                 onSelect={(net) => {
                   setNetwork(net);
-                  setBundle(null); // Reset bundle if network changes
+                  setBundle(null);
                   setTimeout(handleNext, 300);
                 }} 
               />
@@ -145,16 +162,60 @@ export default function DataPage() {
         {/* Step 2: Phone */}
         {step === 2 && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-card border border-border/50 rounded-3xl p-6 md:p-8 shadow-sm">
-              <h2 className="text-xl font-semibold mb-2">Recipient Details</h2>
-              <p className="text-sm text-muted-foreground mb-6">Enter the phone number to receive the bundle.</p>
+            <div className="bg-card border border-border/50 rounded-3xl p-6 md:p-8 shadow-sm space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold mb-1">Recipient Details</h2>
+                <p className="text-sm text-muted-foreground">Enter the phone number to receive the data bundle.</p>
+              </div>
               
               <PhoneInput 
                 value={phone} 
                 onChange={setPhone} 
-                onValidationChange={setIsPhoneValid} 
+                onValidationChange={setIsPhoneValid}
+                onCarrierChange={(c) => {
+                  if (c.name === "AIRTEL") setNetwork("Airtel");
+                  else if (c.name === "TELKOM") setNetwork("Telkom");
+                  else if (c.name === "EQUITEL") setNetwork("Equitel");
+                  else if (c.name === "FAIBA") setNetwork("Faiba");
+                  else if (c.name === "SAFARICOM") setNetwork("Safaricom");
+                }}
               />
+
+              {/* Active Network Preview Badge Card */}
+              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-secondary/40 border border-border/50">
+                <div className="flex items-center gap-3">
+                  <div className="relative w-8 h-8 rounded-lg overflow-hidden bg-white shrink-0 p-1 flex items-center justify-center border border-border/40">
+                    <Image 
+                      src={detectedCarrier.name !== "UNKNOWN" ? detectedCarrier.logoSrc : (network === "Airtel" ? "/logos/airtel-logo.jpg" : network === "Telkom" ? "/logos/telcom-logo.png" : "/logos/safaricom-logo.png")} 
+                      alt={effectiveNetwork} 
+                      fill 
+                      sizes="32px"
+                      className="object-contain p-0.5" 
+                    />
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground">Destination Carrier</span>
+                    <p className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                      {effectiveNetwork} Kenya
+                      {detectedCarrier.name !== "UNKNOWN" && (
+                        <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20">
+                          Auto-Detected
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+                >
+                  <RefreshCw className="w-3 h-3" /> Change
+                </button>
+              </div>
             </div>
+
             <div className="flex flex-col-reverse sm:flex-row justify-between gap-4">
               <Button onClick={handleBack} variant="outline" size="lg">
                 Back
@@ -173,8 +234,37 @@ export default function DataPage() {
         {/* Step 3: Bundle */}
         {step === 3 && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Recipient summary banner */}
+            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-secondary/30 border border-border/40">
+              <div className="flex items-center gap-2.5">
+                <div className="relative w-6 h-6 rounded-md overflow-hidden bg-white shrink-0">
+                  <Image 
+                    src={detectedCarrier.name !== "UNKNOWN" ? detectedCarrier.logoSrc : (effectiveNetwork === "Airtel" ? "/logos/airtel-logo.jpg" : "/logos/safaricom-logo.png")} 
+                    alt={effectiveNetwork} 
+                    fill 
+                    sizes="24px"
+                    className="object-contain p-0.5" 
+                  />
+                </div>
+                <div className="text-xs">
+                  <span className="text-muted-foreground">Recipient: </span>
+                  <strong className="text-foreground font-mono">{phone}</strong>
+                  <span className={cn("ml-2 px-1.5 py-0.2 rounded text-[10px] font-bold border", detectedCarrier.badgeBg, detectedCarrier.borderBg)}>
+                    {effectiveNetwork}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStep(2)}
+                className="text-xs font-semibold text-primary hover:underline"
+              >
+                Edit
+              </button>
+            </div>
+
             <div className="bg-card border border-border/50 rounded-3xl p-6 md:p-8 shadow-sm">
-              <h2 className="text-xl font-semibold mb-6">Select Package</h2>
+              <h2 className="text-xl font-semibold mb-6">Select {effectiveNetwork} Package</h2>
               <BundleSelector 
                 bundles={bundlesForNetwork}
                 selectedBundleId={bundle?.id || null}
