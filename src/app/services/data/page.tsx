@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { NetworkSelector, Network } from "@/components/services/NetworkSelector";
@@ -19,7 +19,7 @@ import { getRememberedServiceDestination } from "@/lib/beneficiaries";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
-export default function DataPage() {
+function DataContent() {
   const [step, setStep] = useState<Step>(1);
   const [network, setNetwork] = useState<Network | null>(null);
   const [phone, setPhone] = useState("");
@@ -327,4 +327,20 @@ export default function DataPage() {
     </main>
   );
 }
+
+export default function DataPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen bg-background pt-24 pb-16 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+          <p className="text-sm text-muted-foreground font-medium">Loading Data Bundles...</p>
+        </div>
+      </main>
+    }>
+      <DataContent />
+    </Suspense>
+  );
+}
+
 
