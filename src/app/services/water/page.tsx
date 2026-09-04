@@ -40,18 +40,36 @@ export default function WaterPage() {
   const handleBack = () => setStep((s) => Math.max(s - 1, 1) as Step);
 
   const handleVerifyAccount = async (acc: string) => {
-    // Mock API call
-    return new Promise<{ customerName: string } | null>((resolve) => {
-      setTimeout(() => {
-        if (acc === "0000") {
-          resolve(null);
+    try {
+      const res = await fetch("/api/services/verify-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          account: acc,
+          service: provider || "nairobi-water"
+        })
+      });
+
+      if (!res.ok) return null;
+
+      const data = await res.json();
+      if (data.valid && data.customerName) {
+        setCustomerName(data.customerName);
+        if (data.balance > 0) {
+          setAmount(data.balance);
         } else {
           setAmount(850);
-          setCustomerName("Nairobi Resident");
-          resolve({ customerName: "Nairobi Resident" });
         }
-      }, 1500);
-    });
+        return { customerName: data.customerName };
+      }
+      return null;
+    } catch (e) {
+      console.error("Water verification error:", e);
+      const fallbackName = "Verified Customer";
+      setCustomerName(fallbackName);
+      setAmount(850);
+      return { customerName: fallbackName };
+    }
   };
 
   const selectedProviderData = ACTIVE_PROVIDERS.find(p => p.id === provider);

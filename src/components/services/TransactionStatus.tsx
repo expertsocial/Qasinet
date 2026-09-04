@@ -76,7 +76,7 @@ export function TransactionStatus({
             <Link href="/services" className={cn(buttonVariants({ variant: "outline" }))}>
               Buy Another Service
             </Link>
-            <Link href={`/track?ref=${reference || ""}`} className={cn(buttonVariants())}>
+            <Link href={`/receipt/${reference || ""}`} className={cn(buttonVariants())}>
               View Receipt
             </Link>
           </div>
@@ -132,7 +132,7 @@ export function TransactionStatus({
           <Link href="/services" className={cn(buttonVariants({ variant: "outline" }), "flex-1")}>
             Done
           </Link>
-          <Link href={`/track?ref=${reference || ""}`} className={cn(buttonVariants(), "flex-1")}>
+          <Link href={`/receipt/${reference || ""}`} className={cn(buttonVariants(), "flex-1")}>
             View Receipt
           </Link>
         </div>

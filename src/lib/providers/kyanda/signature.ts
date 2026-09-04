@@ -38,6 +38,16 @@ export class KyandaSignatureEngine {
     return this.generateHmac(data, securityKey);
   }
 
+  static generateAccountQuerySignature(
+    account: string,
+    telco: string,
+    merchantId: string,
+    securityKey: string
+  ): string {
+    const data = `${account}${telco}${merchantId}`;
+    return this.generateHmac(data, securityKey);
+  }
+
   static generateCheckoutSignature(
     amount: string | number,
     phoneNumber: string,

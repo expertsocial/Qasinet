@@ -43,7 +43,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ refe
 
     const { data: tx, error } = await supabase
       .from('transactions')
-      .select('id, status, kyanda_reference, updated_at, failure_reason')
+      .select('id, qsn_reference, status, amount, selling_price, destination, payment_reference, kyanda_reference, failure_reason, metadata, created_at, updated_at, services(name, slug, type)')
       .eq('qsn_reference', reference)
       .single();
 
@@ -53,6 +53,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ refe
 
     let currentStatus = tx.status;
     let kyandaRef = tx.kyanda_reference;
+    let metadata = tx.metadata || {};
 
     // On-demand reconciliation for VENDING_PENDING
     if (tx.status === 'VENDING_PENDING' && tx.kyanda_reference) {
@@ -81,12 +82,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ refe
 
           if (isFinal) {
             const orchestrator = new TransactionOrchestrator(supabase);
-            await orchestrator.finalizeTransaction(tx.id, isSuccess, isSuccess ? undefined : `Reconciled manually: ${kyandaStatus}`);
+            const token = (response.details as any)?.Token || (response as any).Token;
+            const units = (response.details as any)?.Units || (response as any).Units;
+            if (token) metadata.token = token;
+            if (units) metadata.units = units;
+
+            await orchestrator.finalizeTransaction(
+              tx.id, 
+              isSuccess, 
+              isSuccess ? undefined : `Reconciled manually: ${kyandaStatus}`,
+              tx.kyanda_reference,
+              metadata
+            );
             currentStatus = isSuccess ? 'SUCCESS' : 'VENDING_FAILED';
           }
         } catch (err: any) {
           console.error(`[On-Demand Reconciliation] Error for ${reference}:`, err.message);
-          // Do not fail the transaction; allow it to be retried later or handled by IPN
         }
       }
     }
@@ -94,9 +105,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ refe
     return NextResponse.json({
       state: currentStatus,
       providerRef: kyandaRef,
+      paymentRef: tx.payment_reference,
+      reference: tx.qsn_reference,
+      amount: tx.amount,
+      destination: tx.destination,
+      service: tx.services,
+      metadata: metadata,
+      createdAt: tx.created_at,
       message: tx.failure_reason,
-      // If we have a successful transaction, we could fetch and attach the token/receipt data here
-      // For now, we rely on the DB state. The frontend handles token extraction if needed.
     }, { status: 200 });
 
   } catch (error) {

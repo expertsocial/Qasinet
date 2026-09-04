@@ -212,12 +212,19 @@ export class TransactionOrchestrator {
     await this.logEvent(transactionId, 'VENDING_PENDING', { message: 'Vending authorized by payment success' });
   }
 
-  public async finalizeTransaction(transactionId: string, success: boolean, reason?: string, providerRef?: string) {
+  public async finalizeTransaction(
+    transactionId: string, 
+    success: boolean, 
+    reason?: string, 
+    providerRef?: string,
+    metadata?: any
+  ) {
     const finalState = success ? 'SUCCESS' : 'VENDING_FAILED';
     
     const updatePayload: any = { status: finalState };
     if (reason) updatePayload.failure_reason = reason;
     if (providerRef) updatePayload.kyanda_reference = providerRef;
+    if (metadata) updatePayload.metadata = metadata;
 
     const { error: updateError } = await this.supabase
       .from('transactions')
@@ -229,7 +236,7 @@ export class TransactionOrchestrator {
       throw new QasiNetError('UNKNOWN', 'Failed to finalize transaction');
     }
 
-    await this.logEvent(transactionId, finalState, { reason, providerRef });
+    await this.logEvent(transactionId, finalState, { reason, providerRef, metadata });
     
     if (success) {
       const receiptNum = `RCPT-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;

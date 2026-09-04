@@ -1,27 +1,31 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Search, Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
-export default function TrackTransactionPage() {
-  const [txRef, setTxRef] = useState("");
+function TrackTransactionContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const refFromQuery = searchParams.get("ref") || "";
+
+  const [txRef, setTxRef] = useState(refFromQuery);
   const [phone, setPhone] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const router = useRouter();
+  useEffect(() => {
+    if (refFromQuery) {
+      setTxRef(refFromQuery);
+    }
+  }, [refFromQuery]);
 
   const handleTrack = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!txRef.trim()) return;
     setIsLoading(true);
-    // Simulate backend connection step
-    setTimeout(() => {
-      setIsLoading(false);
-      // In a real app, you would verify phone matches transaction ref.
-      router.push(`/receipt/${txRef}`);
-    }, 1000);
+    router.push(`/receipt/${encodeURIComponent(txRef.trim())}`);
   };
 
   return (
@@ -90,3 +94,16 @@ export default function TrackTransactionPage() {
     </div>
   );
 }
+
+export default function TrackTransactionPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-[calc(100vh-80px)] items-center justify-center pt-20">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    }>
+      <TrackTransactionContent />
+    </Suspense>
+  );
+}
+

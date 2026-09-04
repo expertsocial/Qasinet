@@ -86,7 +86,24 @@ export async function POST(req: Request) {
 
       const reason = isSuccess ? undefined : message || payload.transactiontxt || finalStatus || 'Failed';
 
-      await orchestrator.finalizeTransaction(tx.id, isSuccess, reason, providerReference);
+      // Extract metadata like tokens, units, receipts if present
+      const metadata: any = {};
+      const token = payload.Token || payload.token || payload.details?.Token || payload.details?.token;
+      const units = payload.Units || payload.units || payload.details?.Units || payload.details?.units;
+      const receipt = payload.Receipt || payload.receipt || payload.details?.Receipt || payload.details?.receipt;
+
+      if (token) metadata.token = token;
+      if (units) metadata.units = units;
+      if (receipt) metadata.receipt = receipt;
+      if (payload.details) metadata.providerDetails = payload.details;
+
+      await orchestrator.finalizeTransaction(
+        tx.id, 
+        isSuccess, 
+        reason, 
+        providerReference, 
+        Object.keys(metadata).length > 0 ? metadata : undefined
+      );
     } else {
       // It's already in a terminal state, just acknowledge.
       console.log(`Webhook received for transaction ${tx.id} but state is ${tx.status}. Ignored.`);

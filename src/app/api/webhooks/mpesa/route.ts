@@ -5,17 +5,20 @@ import { KyandaProvider } from '@/lib/providers/kyanda/provider';
 
 // Map service slugs to Kyanda Telco IDs
 function getKyandaTelco(slug: string): string {
-  if (slug.includes('safaricom')) return 'SAFARICOM';
-  if (slug.includes('airtel')) return 'AIRTEL';
-  if (slug.includes('telkom')) return 'TELKOM';
-  if (slug.includes('equitel')) return 'EQUITEL';
-  if (slug.includes('faiba')) return 'FAIBA';
-  if (slug.includes('kplc')) return 'KPLC';
-  if (slug.includes('dstv')) return 'DSTV';
-  if (slug.includes('gotv')) return 'GOTV';
-  if (slug.includes('zuku')) return 'ZUKU';
-  if (slug.includes('startimes')) return 'STARTIMES';
-  if (slug.includes('nairobi-water') || slug.includes('nairobiwater')) return 'NAIROBIWATER';
+  const s = (slug || '').toLowerCase();
+  if (s.includes('kplc-prepaid') || s.includes('prepaid')) return 'KPLC_PREPAID';
+  if (s.includes('kplc-postpaid') || s.includes('postpaid')) return 'KPLC_POSTPAID';
+  if (s.includes('kplc')) return 'KPLC_PREPAID';
+  if (s.includes('dstv')) return 'DSTV';
+  if (s.includes('gotv')) return 'GOTV';
+  if (s.includes('zuku')) return 'ZUKU';
+  if (s.includes('startimes')) return 'STARTIMES';
+  if (s.includes('water') || s.includes('nairobi-water') || s.includes('nairobiwater')) return 'NAIROBIWATER';
+  if (s.includes('safaricom')) return 'SAFARICOM';
+  if (s.includes('airtel')) return 'AIRTEL';
+  if (s.includes('telkom')) return 'TELKOM';
+  if (s.includes('equitel')) return 'EQUITEL';
+  if (s.includes('faiba')) return 'FAIBA';
   return 'SAFARICOM'; // Default fallback
 }
 

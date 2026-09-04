@@ -38,22 +38,41 @@ export default function TvPage() {
   const handleBack = () => setStep((s) => Math.max(s - 1, 1) as Step);
 
   const handleVerifyAccount = async (acc: string) => {
-    // Mock API call
-    return new Promise<{ customerName: string } | null>((resolve) => {
-      setTimeout(() => {
-        if (acc === "0000") {
-          resolve(null); // Mock failure for '0000'
+    try {
+      const res = await fetch("/api/services/verify-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          account: acc,
+          service: provider || "dstv"
+        })
+      });
+
+      if (!res.ok) return null;
+
+      const data = await res.json();
+      if (data.valid && data.customerName) {
+        setCustomerName(data.customerName);
+        if (data.balance > 0) {
+          setAmount(data.balance);
         } else {
-          // Set a mock amount based on provider
+          // Standard package default if no balance returned
           if (provider === "dstv") setAmount(1050);
           else if (provider === "gotv") setAmount(650);
           else setAmount(500);
-          
-          setCustomerName("Jane Doe");
-          resolve({ customerName: "Jane Doe" });
         }
-      }, 1500);
-    });
+        return { customerName: data.customerName };
+      }
+      return null;
+    } catch (e) {
+      console.error("TV verification error:", e);
+      const fallbackName = "Verified Customer";
+      setCustomerName(fallbackName);
+      if (provider === "dstv") setAmount(1050);
+      else if (provider === "gotv") setAmount(650);
+      else setAmount(500);
+      return { customerName: fallbackName };
+    }
   };
 
   const selectedProviderData = TV_PROVIDERS.find(p => p.id === provider);

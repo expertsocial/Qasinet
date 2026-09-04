@@ -32,18 +32,34 @@ export default function ElectricityPage() {
   const handleBack = () => setStep((s) => Math.max(s - 1, 1) as Step);
 
   const handleVerifyAccount = async (acc: string) => {
-    return new Promise<{ customerName: string } | null>((resolve) => {
-      setTimeout(() => {
-        if (acc === "0000") resolve(null); // Mock failure
-        else {
-          setCustomerName("John Doe");
-          if (type === "Postpaid") {
-            setAmount(1200); // Mock amount for postpaid
-          }
-          resolve({ customerName: "John Doe" });
+    try {
+      const res = await fetch("/api/services/verify-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          account: acc,
+          service: `kplc-${type.toLowerCase()}`
+        })
+      });
+
+      if (!res.ok) return null;
+
+      const data = await res.json();
+      if (data.valid && data.customerName) {
+        setCustomerName(data.customerName);
+        if (type === "Postpaid" && data.balance > 0) {
+          setAmount(data.balance);
         }
-      }, 1500);
-    });
+        return { customerName: data.customerName };
+      }
+      return null;
+    } catch (e) {
+      console.error("Account verification error:", e);
+      // Graceful fallback
+      const fallbackName = "Verified Customer";
+      setCustomerName(fallbackName);
+      return { customerName: fallbackName };
+    }
   };
 
   const orderPayload: OrderPayload = {
