@@ -80,8 +80,10 @@ export async function POST(req: NextRequest) {
     try {
       const mpesaProvider = new MpesaDarajaProvider();
       
-      // Use user's registered phone, or guest phone, or fallback to destination if it's a phone top-up
-      const payingPhone = user?.phone || guestPhone || destination; 
+      // Use explicitly provided paymentPhone (guestPhone), then user's registered phone, or fallback to destination
+      const payingPhone = guestPhone || user?.phone || destination; 
+      
+      console.log(`[${correlationId}] Sending M-Pesa STK Push to: ${payingPhone} for destination: ${destination} (${serviceSlug})`);
       
       const stkResponse = await mpesaProvider.initiateSTKPush(
         payingPhone,
