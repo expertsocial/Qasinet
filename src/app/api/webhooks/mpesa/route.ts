@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     // 1. Find the transaction by CheckoutRequestID (stored in payment_reference)
     const { data: tx, error: fetchError } = await supabaseService
       .from('transactions')
-      .select('id, status, amount, destination, service_id, services(slug, type)')
+      .select('id, status, amount, destination, service_id, product_id, services(slug, type), products(name, provider_product_id)')
       .eq('payment_reference', CheckoutRequestID)
       .single();
 
@@ -61,10 +61,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
     }
 
-    // 2. Handle Failed Payment
+    // 2. Check if Payment was Successful on Daraja
     if (ResultCode !== 0) {
-      console.log(`[M-PESA Webhook] Payment failed for ${tx.id}: ${ResultDesc}`);
-      await orchestrator.updatePaymentState(tx.id, 'PAYMENT_FAILED', CheckoutRequestID, ResultDesc);
+      console.warn(`[M-PESA Webhook] Payment failed on Daraja for tx ${tx.id}. Reason: ${ResultDesc}`);
+      await orchestrator.updatePaymentState(tx.id, 'PAYMENT_FAILED', undefined, ResultDesc || 'M-Pesa payment cancelled/failed');
       return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
     }
 
@@ -99,22 +99,31 @@ export async function POST(req: NextRequest) {
       console.log(`[M-PESA Webhook] Starting Kyanda vending for ${tx.id}`);
       const kyandaProvider = new KyandaProvider();
       const services: any = tx.services;
+      const products: any = tx.products;
       const serviceSlug = services?.slug || (Array.isArray(services) && services[0]?.slug) || '';
       const serviceType = services?.type || (Array.isArray(services) && services[0]?.type) || '';
-      const telco = getKyandaTelco(serviceSlug);
+      let telco = getKyandaTelco(serviceSlug);
       
+      const productCode = products?.provider_product_id || (Array.isArray(products) && products[0]?.provider_product_id) || undefined;
+
+      // For Faiba Bundles, Kyanda expects telco 'FAIBA_B' with productCode
+      if (serviceSlug.includes('faiba') && (serviceType === 'data' || productCode)) {
+        telco = 'FAIBA_B';
+      }
+
       const initiatorPhone = process.env.KYANDA_INITIATOR_PHONE || '0722647928';
 
       let vendingResult: { merchant_reference: string };
 
-      console.log(`[Kyanda Vending Payload] Type: ${serviceType}, Amount: ${tx.amount}, Dest: ${tx.destination}, Telco: ${telco}, Initiator: ${initiatorPhone}`);
+      console.log(`[Kyanda Vending Payload] Type: ${serviceType}, Amount: ${tx.amount}, Dest: ${tx.destination}, Telco: ${telco}, ProductCode: ${productCode}, Initiator: ${initiatorPhone}`);
 
       if (serviceType === 'airtime' || serviceType === 'data') {
         vendingResult = await kyandaProvider.buyAirtime(
           tx.amount,
           tx.destination,
           telco,
-          initiatorPhone
+          initiatorPhone,
+          productCode
         );
       } else {
         vendingResult = await kyandaProvider.payBill(
