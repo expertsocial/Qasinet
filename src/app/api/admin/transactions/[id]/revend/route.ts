@@ -54,7 +54,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const { data: tx, error } = await supabaseService
       .from('transactions')
-      .select('id, status, amount, destination, payment_reference, services(slug, type)')
+      .select('id, status, amount, destination, payment_reference, services(slug, type), products(provider_product_id)')
       .eq('id', id)
       .single();
 
@@ -64,19 +64,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const kyandaProvider = new KyandaProvider();
     const services: any = tx.services;
+    const products: any = tx.products;
     const serviceSlug = services?.slug || (Array.isArray(services) && services[0]?.slug) || '';
     const serviceType = services?.type || (Array.isArray(services) && services[0]?.type) || '';
-    const telco = getKyandaTelco(serviceSlug);
+    let telco = getKyandaTelco(serviceSlug);
+    const productCode = products?.provider_product_id || (Array.isArray(products) && products[0]?.provider_product_id) || undefined;
+
+    // For Faiba Bundles, Kyanda expects telco 'FAIBA_B' with productCode
+    if (serviceSlug.includes('faiba') && (serviceType === 'data' || productCode)) {
+      telco = 'FAIBA_B';
+    }
+
     const initiatorPhone = process.env.KYANDA_INITIATOR_PHONE || '0722647928';
 
     let vendingResult: { merchant_reference: string };
 
-    if (serviceType === 'airtime') {
+    if (serviceType === 'airtime' || serviceType === 'data') {
       vendingResult = await kyandaProvider.buyAirtime(
         tx.amount,
         tx.destination,
         telco,
-        initiatorPhone
+        initiatorPhone,
+        productCode
       );
     } else {
       vendingResult = await kyandaProvider.payBill(

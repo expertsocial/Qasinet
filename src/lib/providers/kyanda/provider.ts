@@ -88,9 +88,10 @@ export class KyandaProvider {
     const formattedPhone = formatKyandaPhone(phone);
     const formattedInitiator = formatKyandaPhone(initiatorPhone);
     const formattedTelco = (telco || 'SAFARICOM').toUpperCase();
+    const cleanAmount = String(Math.round(Number(amount)));
 
     const signature = KyandaSignatureEngine.generateAirtimeSignature(
-      amount,
+      cleanAmount,
       formattedPhone,
       formattedTelco,
       formattedInitiator,
@@ -98,17 +99,21 @@ export class KyandaProvider {
       this.securityKey
     );
 
+    // Kyanda /billing/v1/airtime/create strictly accepts:
+    // MerchantID, phone, amount, telco, initiatorPhone, signature.
+    // callbackURL is an excess parameter and MUST NOT be sent here (it is registered via API/dashboard).
     const payload: any = {
       MerchantID: merchantId,
       phone: formattedPhone,
-      amount: String(amount),
+      amount: cleanAmount,
       telco: formattedTelco,
       initiatorPhone: formattedInitiator,
-      signature,
-      callbackURL: getSanitizedCallbackUrl()
+      signature
     };
 
-    if (productCode) {
+    // productCode is strictly ONLY accepted for FAIBA_B (Faiba bundle packages).
+    // Sending productCode for SAFARICOM, AIRTEL, TELKOM, EQUITEL causes HTTP 400 Missing/Excess parameters.
+    if (formattedTelco === 'FAIBA_B' && productCode) {
       payload.productCode = productCode;
     }
 
@@ -124,9 +129,10 @@ export class KyandaProvider {
     const merchantId = this.client.getMerchantId();
     const formattedInitiator = formatKyandaPhone(initiatorPhone);
     const formattedTelco = (telco || 'SAFARICOM').toUpperCase();
+    const cleanAmount = String(Math.round(Number(amount)));
 
     const signature = KyandaSignatureEngine.generateBillSignature(
-      amount,
+      cleanAmount,
       account,
       formattedTelco,
       formattedInitiator,
@@ -134,17 +140,36 @@ export class KyandaProvider {
       this.securityKey
     );
 
+    // Kyanda /billing/v1/bill/create strictly accepts:
+    // MerchantID, account, amount, telco, initiatorPhone, signature.
+    // callbackURL is NOT an accepted parameter in the request body.
     const payload: any = {
       MerchantID: merchantId,
       account,
-      amount: String(amount),
+      amount: cleanAmount,
       telco: formattedTelco,
       initiatorPhone: formattedInitiator,
-      signature,
-      callbackURL: getSanitizedCallbackUrl()
+      signature
     };
 
     return this.client.request<{ merchant_reference: string }>('/billing/v1/bill/create', payload);
+  }
+
+  async registerCallbackUrl(callbackUrl?: string): Promise<any> {
+    const merchantId = this.client.getMerchantId();
+    const targetUrl = callbackUrl || getSanitizedCallbackUrl();
+    if (!targetUrl) {
+      throw new Error('Callback URL is required to register with Kyanda.');
+    }
+
+    const signature = KyandaSignatureEngine.generateAccountBalanceSignature(merchantId, this.securityKey);
+    const payload = {
+      MerchantID: merchantId,
+      callbackURL: targetUrl,
+      signature
+    };
+
+    return this.client.request<any>('/billing/v1/callback-url/create', payload);
   }
 
   async verifyAccount(
