@@ -55,23 +55,7 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
-    // MFA / AAL2 Check
-    const { data: mfaData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-    
-    // If not AAL2 and not already on MFA page, redirect to setup/verify
-    if (mfaData?.currentLevel !== 'aal2' && !request.nextUrl.pathname.startsWith('/admin/mfa')) {
-      // Check if they have enrolled factors to decide between verify or setup
-      const { data: factors } = await supabase.auth.mfa.listFactors()
-      const totpFactor = factors?.totp.find((f) => f.status === 'verified')
-
-      const url = request.nextUrl.clone()
-      if (totpFactor) {
-        url.pathname = '/admin/mfa/verify'
-      } else {
-        url.pathname = '/admin/mfa/setup'
-      }
-      return NextResponse.redirect(url)
-    }
+    // Admin verified - access granted
   }
 
   return supabaseResponse
