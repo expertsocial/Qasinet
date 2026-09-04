@@ -115,7 +115,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         .update({
           status: 'VENDING_PENDING',
           kyanda_reference: vendingResult.merchant_reference,
-          metadata: metadata,
           failure_reason: null
         })
         .eq('id', tx.id);

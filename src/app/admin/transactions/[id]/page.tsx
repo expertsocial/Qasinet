@@ -37,8 +37,8 @@ export default async function TransactionDetailPage({ params }: { params: Promis
     .eq('provider_reference', tx.kyanda_reference || 'unknown')
     .order('created_at', { ascending: true });
 
-  const token = tx.metadata?.token;
-  const units = tx.metadata?.units;
+  const token = tx.metadata?.token || events?.find((e: any) => e.details?.token)?.details?.token;
+  const units = tx.metadata?.units || events?.find((e: any) => e.details?.units)?.details?.units;
   const services: any = tx.services;
   const serviceName = services?.name || (Array.isArray(services) && services[0]?.name) || 'Airtime';
 

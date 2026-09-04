@@ -49,7 +49,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     let isSuccess = false;
     let message = 'Reconciled';
     let rawResponse: any = null;
-    const metadata = tx.metadata || {};
+    
+    // Fetch latest event details
+    const { data: latestEv } = await supabaseService
+      .from('transaction_events')
+      .select('details')
+      .eq('transaction_id', id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const metadata: any = latestEv?.details || {};
 
     if (tx.kyanda_reference) {
       try {

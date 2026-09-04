@@ -43,7 +43,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ refe
 
     const { data: tx, error } = await supabase
       .from('transactions')
-      .select('id, qsn_reference, status, amount, selling_price, destination, payment_reference, kyanda_reference, failure_reason, metadata, created_at, updated_at, services(name, slug, type)')
+      .select('id, qsn_reference, status, amount, selling_price, destination, payment_reference, kyanda_reference, failure_reason, created_at, updated_at, services(name, slug, type)')
       .eq('qsn_reference', reference)
       .single();
 
@@ -51,9 +51,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ refe
       return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
     }
 
+    // Fetch latest event details for tokens, units, receipts
+    const { data: latestEvent } = await supabase
+      .from('transaction_events')
+      .select('details')
+      .eq('transaction_id', tx.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
     let currentStatus = tx.status;
     let kyandaRef = tx.kyanda_reference;
-    let metadata = tx.metadata || {};
+    let metadata: any = latestEvent?.details || {};
 
     // On-demand reconciliation for VENDING_PENDING
     if (tx.status === 'VENDING_PENDING' && tx.kyanda_reference) {

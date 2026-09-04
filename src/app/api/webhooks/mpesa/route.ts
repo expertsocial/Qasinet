@@ -93,96 +93,82 @@ export async function POST(req: NextRequest) {
     // 4. Authorize Vending
     await orchestrator.authorizeVending(tx.id);
 
-    // 5. EVENT-DRIVEN VENDING (Background execution)
-    // Execute vending without awaiting, so M-PESA gets an instant 200 OK.
-    const runVending = async () => {
-      try {
-        console.log(`[M-PESA Webhook] Starting background Kyanda vending for ${tx.id}`);
-        const kyandaProvider = new KyandaProvider();
-        const services: any = tx.services;
-        const serviceSlug = services?.slug || (Array.isArray(services) && services[0]?.slug) || '';
-        const serviceType = services?.type || (Array.isArray(services) && services[0]?.type) || '';
-        const telco = getKyandaTelco(serviceSlug);
-        
-        // Use a valid phone number format as Kyanda rejects generic strings
-        const initiatorPhone = process.env.KYANDA_INITIATOR_PHONE || '0722647928';
+    // 5. VENDING DISPATCH
+    // We execute Kyanda vending and finalize transaction before acknowledging M-Pesa
+    try {
+      console.log(`[M-PESA Webhook] Starting Kyanda vending for ${tx.id}`);
+      const kyandaProvider = new KyandaProvider();
+      const services: any = tx.services;
+      const serviceSlug = services?.slug || (Array.isArray(services) && services[0]?.slug) || '';
+      const serviceType = services?.type || (Array.isArray(services) && services[0]?.type) || '';
+      const telco = getKyandaTelco(serviceSlug);
+      
+      const initiatorPhone = process.env.KYANDA_INITIATOR_PHONE || '0722647928';
 
-        let vendingResult: { merchant_reference: string };
+      let vendingResult: { merchant_reference: string };
 
-        console.log(`[Kyanda Vending Payload] Type: ${serviceType}, Amount: ${tx.amount}, Dest: ${tx.destination}, Telco: ${telco}, Initiator: ${initiatorPhone}`);
+      console.log(`[Kyanda Vending Payload] Type: ${serviceType}, Amount: ${tx.amount}, Dest: ${tx.destination}, Telco: ${telco}, Initiator: ${initiatorPhone}`);
 
-        if (serviceType === 'airtime') {
-          vendingResult = await kyandaProvider.buyAirtime(
-            tx.amount,
-            tx.destination,
-            telco,
-            initiatorPhone
-          );
-        } else {
-          vendingResult = await kyandaProvider.payBill(
-            tx.amount,
-            tx.destination,
-            telco,
-            initiatorPhone
-          );
-        }
+      if (serviceType === 'airtime') {
+        vendingResult = await kyandaProvider.buyAirtime(
+          tx.amount,
+          tx.destination,
+          telco,
+          initiatorPhone
+        );
+      } else {
+        vendingResult = await kyandaProvider.payBill(
+          tx.amount,
+          tx.destination,
+          telco,
+          initiatorPhone
+        );
+      }
 
-        console.log(`[M-PESA Webhook] Vending initiated for ${tx.id}, Kyanda Ref: ${vendingResult.merchant_reference}`);
-        
-        const rawRes: any = vendingResult;
-        const token = rawRes?.Token || rawRes?.token || rawRes?.details?.Token || rawRes?.details?.token;
-        const units = rawRes?.Units || rawRes?.units || rawRes?.details?.Units || rawRes?.details?.units;
+      console.log(`[M-PESA Webhook] Vending response received for ${tx.id}, Kyanda Ref: ${vendingResult.merchant_reference}`);
+      
+      const rawRes: any = vendingResult;
+      const token = rawRes?.Token || rawRes?.token || rawRes?.details?.Token || rawRes?.details?.token;
+      const units = rawRes?.Units || rawRes?.units || rawRes?.details?.Units || rawRes?.details?.units;
 
-        const metadata: any = {
-          merchant_reference: vendingResult.merchant_reference,
-          kyanda_response: vendingResult
-        };
-        if (token) metadata.token = token;
-        if (units) metadata.units = units;
+      const metadata: any = {
+        merchant_reference: vendingResult.merchant_reference,
+        kyanda_response: vendingResult
+      };
+      if (token) metadata.token = token;
+      if (units) metadata.units = units;
 
-        // For airtime or if token/receipt is already returned, finalize immediately as SUCCESS
-        if (serviceType === 'airtime' || token) {
-          console.log(`[M-PESA Webhook] Finalizing transaction ${tx.id} to SUCCESS`);
-          await orchestrator.finalizeTransaction(
-            tx.id,
-            true,
-            undefined,
-            vendingResult.merchant_reference,
-            metadata
-          );
-        } else {
-          // For utility bills awaiting asynchronous token delivery
-          await supabaseService
-            .from('transactions')
-            .update({ 
-              kyanda_reference: vendingResult.merchant_reference,
-              metadata: metadata
-            })
-            .eq('id', tx.id);
-        }
-
-      } catch (vendingError: any) {
-        console.error(`[M-PESA Webhook] Background vending failed for ${tx.id}:`, vendingError.message);
+      // For airtime or if token/receipt is already returned, finalize immediately as SUCCESS
+      if (serviceType === 'airtime' || token) {
+        console.log(`[M-PESA Webhook] Finalizing transaction ${tx.id} to SUCCESS`);
+        await orchestrator.finalizeTransaction(
+          tx.id,
+          true,
+          undefined,
+          vendingResult.merchant_reference,
+          metadata
+        );
+      } else {
+        // For utility bills awaiting asynchronous token delivery
         await supabaseService
           .from('transactions')
           .update({ 
-            status: 'VENDING_FAILED', 
-            failure_reason: vendingError.message || 'Kyanda API failed' 
+            kyanda_reference: vendingResult.merchant_reference
           })
           .eq('id', tx.id);
-      }
-    };
 
-    // Use Next.js 'after' if available, otherwise fallback to floating promise (safe in Node.js runtime)
-    try {
-      const { after } = require('next/server');
-      if (typeof after === 'function') {
-        after(runVending);
-      } else {
-        runVending().catch(console.error);
+        await orchestrator.logEvent(tx.id, 'VENDING_PENDING', metadata);
       }
-    } catch (e) {
-      runVending().catch(console.error);
+
+    } catch (vendingError: any) {
+      console.error(`[M-PESA Webhook] Vending failed for ${tx.id}:`, vendingError.message);
+      await supabaseService
+        .from('transactions')
+        .update({ 
+          status: 'VENDING_FAILED', 
+          failure_reason: vendingError.message || 'Kyanda API failed' 
+        })
+        .eq('id', tx.id);
     }
 
     // Acknowledge Daraja immediately

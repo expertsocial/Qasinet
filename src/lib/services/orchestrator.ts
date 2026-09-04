@@ -35,7 +35,7 @@ export class TransactionOrchestrator {
     return `QSN-${yyyy}${mm}${dd}-${randomStr}`;
   }
 
-  private async logEvent(transactionId: string, status: TransactionStatus, details?: any) {
+  public async logEvent(transactionId: string, status: TransactionStatus, details?: any) {
     const { error } = await this.supabase.from('transaction_events').insert({
       transaction_id: transactionId,
       status,
@@ -222,9 +222,8 @@ export class TransactionOrchestrator {
     const finalState = success ? 'SUCCESS' : 'VENDING_FAILED';
     
     const updatePayload: any = { status: finalState };
-    if (reason) updatePayload.failure_reason = reason;
+    if (reason !== undefined) updatePayload.failure_reason = reason;
     if (providerRef) updatePayload.kyanda_reference = providerRef;
-    if (metadata) updatePayload.metadata = metadata;
 
     const { error: updateError } = await this.supabase
       .from('transactions')
@@ -236,7 +235,11 @@ export class TransactionOrchestrator {
       throw new QasiNetError('UNKNOWN', 'Failed to finalize transaction');
     }
 
-    await this.logEvent(transactionId, finalState, { reason, providerRef, metadata });
+    await this.logEvent(transactionId, finalState, { 
+      reason, 
+      providerRef, 
+      ...(metadata || {}) 
+    });
     
     if (success) {
       const receiptNum = `RCPT-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
