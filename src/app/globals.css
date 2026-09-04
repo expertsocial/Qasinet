@@ -25,9 +25,9 @@
   --radius-2xl: calc(var(--radius) + 8px);
 
   /* Premium Shadows */
-  --shadow-premium-soft: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
-  --shadow-premium-hover: 0 10px 30px -5px rgba(0, 0, 0, 0.1);
-  --shadow-inner-premium: inset 0 2px 4px 0 rgba(0, 0, 0, 0.03);
+  --shadow-premium-soft: 0 4px 24px -2px rgba(0, 0, 0, 0.12);
+  --shadow-premium-hover: 0 12px 36px -4px rgba(0, 0, 0, 0.25);
+  --shadow-inner-premium: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
 
   /* Animations */
   --animate-fade-in: fade-in 0.3s ease-out;
@@ -35,14 +35,13 @@
   --animate-pulse-soft: pulse-soft 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-/* Keyframes need to be defined in @layer utilities for Tailwind v4 to pick them up via animate-* */
 @layer utilities {
   @keyframes fade-in {
     from { opacity: 0; }
     to { opacity: 1; }
   }
   @keyframes slide-up {
-    from { opacity: 0; transform: translateY(10px); }
+    from { opacity: 0; transform: translateY(12px); }
     to { opacity: 1; transform: translateY(0); }
   }
   @keyframes pulse-soft {
@@ -52,68 +51,79 @@
 
   .glass-panel {
     background: var(--glass-bg);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-premium-soft);
+  }
+
+  .glass-card {
+    background: var(--glass-card-bg);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid var(--glass-border);
-    box-shadow: var(--shadow-premium-soft);
   }
 }
 
 @layer base {
   :root {
     --background: #f8fafc;
-    --foreground: #0f172a; /* Slate 900 */
+    --foreground: #090d16;
     
-    /* Premium Blue */
-    --primary: #1e3a8a; /* Blue 900 */
+    /* Emerald / Cyan High-End Primary */
+    --primary: #059669;
     --primary-foreground: #ffffff;
     
-    /* Energetic Green */
-    --secondary: #10b981; /* Emerald 500 */
+    /* Complementary Electric Cyan */
+    --secondary: #0284c7;
     --secondary-foreground: #ffffff;
     
     --accent: #f1f5f9;
-    --accent-foreground: #0f172a;
+    --accent-foreground: #090d16;
     
     --muted: #f1f5f9;
     --muted-foreground: #64748b;
 
     --card: #ffffff;
-    --card-foreground: #0f172a;
+    --card-foreground: #090d16;
     
     --border: #e2e8f0;
     
-    --radius: 0.75rem;
+    --radius: 1rem;
 
-    --glass-bg: rgba(255, 255, 255, 0.7);
-    --glass-border: rgba(255, 255, 255, 0.4);
+    --glass-bg: rgba(255, 255, 255, 0.85);
+    --glass-card-bg: rgba(255, 255, 255, 0.9);
+    --glass-border: rgba(226, 232, 240, 0.8);
   }
   
   .dark {
-    --background: #0f172a; /* Slate 900 */
-    --foreground: #f8fafc; /* Slate 50 */
+    --background: #080c14; /* Deep Obsidian Slate */
+    --foreground: #f8fafc; /* Crisp Pearl White */
     
-    /* Premium Blue, adjusted for dark mode */
-    --primary: #3b82f6; /* Blue 500 */
-    --primary-foreground: #ffffff;
+    /* Vibrant Emerald */
+    --primary: #10b981;
+    --primary-foreground: #042f2e;
     
-    /* Energetic Green, adjusted for dark mode */
-    --secondary: #10b981; /* Emerald 500 */
-    --secondary-foreground: #ffffff;
+    /* Electric Sky */
+    --secondary: #38bdf8;
+    --secondary-foreground: #082f49;
     
-    --accent: #1e293b;
+    --accent: #111827;
     --accent-foreground: #f8fafc;
     
-    --muted: #1e293b;
+    --muted: #131c2e;
     --muted-foreground: #94a3b8;
 
-    --card: #1e293b;
+    --card: #0e1526;
     --card-foreground: #f8fafc;
     
-    --border: #334155;
+    --border: #1e293b;
 
-    --glass-bg: rgba(15, 23, 42, 0.7);
-    --glass-border: rgba(255, 255, 255, 0.1);
+    --radius: 1rem;
+
+    --glass-bg: rgba(8, 12, 20, 0.82);
+    --glass-card-bg: rgba(14, 21, 38, 0.75);
+    --glass-border: rgba(255, 255, 255, 0.08);
   }
 }
 

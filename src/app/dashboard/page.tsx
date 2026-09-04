@@ -9,7 +9,6 @@ import {
   Wifi, 
   Zap, 
   Tv, 
-  Globe, 
   CreditCard, 
   Clock, 
   CheckCircle2, 
@@ -17,7 +16,11 @@ import {
   ChevronRight,
   Copy,
   Check,
-  RefreshCw
+  RefreshCw,
+  TrendingUp,
+  Receipt,
+  Sparkles,
+  Users
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 
@@ -90,304 +93,310 @@ export default function DashboardOverviewPage() {
     switch (status) {
       case "SUCCESS":
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-            <CheckCircle2 className="w-3 h-3" /> Success
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+            <CheckCircle2 className="w-3 h-3" /> Completed
           </span>
         );
       case "FAILED":
       case "PAYMENT_FAILED":
       case "VENDING_FAILED":
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
             <AlertCircle className="w-3 h-3" /> Failed
+          </span>
+        );
+      case "VENDING_PENDING":
+      case "PAYMENT_PENDING":
+      case "CREATED":
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 animate-pulse">
+            <Clock className="w-3 h-3" /> Processing
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 animate-pulse">
-            <Clock className="w-3 h-3" /> Processing
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-muted text-muted-foreground border">
+            {status}
           </span>
         );
     }
   };
 
-  const getServiceLink = (serviceSlug: string) => {
-    if (serviceSlug.includes("airtime")) return "/services/airtime";
-    if (serviceSlug.includes("data")) return "/services/data";
-    if (serviceSlug.includes("electricity") || serviceSlug.includes("kplc")) return "/services/electricity";
-    if (serviceSlug.includes("tv") || serviceSlug.includes("dstv") || serviceSlug.includes("gotv")) return "/services/tv";
-    if (serviceSlug.includes("internet") || serviceSlug.includes("fiber") || serviceSlug.includes("zuku")) return "/services/internet";
-    return "/services/airtime";
+  const getServiceIcon = (type: string) => {
+    switch (type) {
+      case "airtime":
+        return <Smartphone className="w-4 h-4 text-emerald-500" />;
+      case "data":
+        return <Wifi className="w-4 h-4 text-sky-500" />;
+      case "electricity":
+        return <Zap className="w-4 h-4 text-amber-500" />;
+      case "tv":
+        return <Tv className="w-4 h-4 text-indigo-500" />;
+      default:
+        return <CreditCard className="w-4 h-4 text-primary" />;
+    }
   };
 
-  const firstName = user?.fullName ? user.fullName.split(" ")[0] : "Member";
+  if (isLoading && !data) {
+    return (
+      <div className="space-y-6 animate-pulse">
+        <div className="h-10 bg-muted/60 rounded-2xl w-48" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-28 bg-card border border-border/80 rounded-3xl" />
+          ))}
+        </div>
+        <div className="h-64 bg-card border border-border/80 rounded-3xl" />
+      </div>
+    );
+  }
+
+  const metrics = data?.metrics || {
+    totalSpent: 0,
+    thisMonthSpent: 0,
+    totalTransactions: 0,
+    successRate: 100,
+  };
 
   return (
     <div className="space-y-8">
       
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card border border-border p-6 rounded-2xl shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              Welcome back, {firstName}
-            </h1>
-            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
-              Personal Account
-            </span>
-          </div>
-          <p className="text-sm text-muted-foreground mt-1">
-            Real-time overview of your services, payments, and account activity.
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
+            Welcome back, {user?.fullName?.split(" ")[0] || "Member"}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Manage your digital purchases, automated utility payments, and transaction history.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" onClick={fetchDashboardData} disabled={isLoading} className="gap-2">
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} /> Refresh
+
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={fetchDashboardData} 
+            className="rounded-full gap-2 text-xs font-semibold h-9"
+          >
+            <RefreshCw className={isLoading ? "w-3.5 h-3.5 animate-spin" : "w-3.5 h-3.5"} />
+            Refresh
           </Button>
           <Link href="/services/airtime">
-            <Button size="sm" className="gap-2 font-medium">
-              <CreditCard className="w-3.5 h-3.5" /> Buy Airtime / Data
+            <Button size="sm" className="rounded-full gap-1.5 text-xs font-semibold h-9 shadow-sm">
+              <Zap className="w-3.5 h-3.5" /> Buy Airtime / Data
             </Button>
           </Link>
         </div>
       </div>
 
-      {/* Metrics Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+      {/* KPI Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
         
-        {/* Metric 1: Total Spent */}
-        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm flex flex-col justify-between">
-          <div className="flex justify-between items-start">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Total Spent
-            </span>
-            <span className="p-2 rounded-xl bg-primary/10 text-primary">
+        {/* Total Spent */}
+        <div className="p-6 rounded-3xl bg-card border border-border/80 shadow-sm relative overflow-hidden space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Total Purchases</span>
+            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
               <CreditCard className="w-4 h-4" />
-            </span>
-          </div>
-          <div className="mt-4">
-            <div className="text-3xl font-extrabold text-foreground font-mono">
-              KES {data?.metrics.totalSpent?.toLocaleString() ?? "0"}
             </div>
-            <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
-              <span>This month:</span>
-              <strong className="text-foreground font-mono font-medium">
-                KES {data?.metrics.thisMonthSpent?.toLocaleString() ?? "0"}
-              </strong>
-            </p>
           </div>
+          <p className="text-2xl sm:text-3xl font-black text-foreground">
+            KES {metrics.totalSpent.toLocaleString()}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Lifetime across all utilities
+          </p>
         </div>
 
-        {/* Metric 2: Completed Transactions */}
-        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm flex flex-col justify-between">
-          <div className="flex justify-between items-start">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Completed Orders
-            </span>
-            <span className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+        {/* This Month */}
+        <div className="p-6 rounded-3xl bg-card border border-border/80 shadow-sm relative overflow-hidden space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">This Month</span>
+            <div className="p-2 rounded-xl bg-sky-500/10 text-sky-500">
+              <TrendingUp className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl sm:text-3xl font-black text-foreground">
+            KES {metrics.thisMonthSpent.toLocaleString()}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Current billing cycle spend
+          </p>
+        </div>
+
+        {/* Total Orders */}
+        <div className="p-6 rounded-3xl bg-card border border-border/80 shadow-sm relative overflow-hidden space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Transactions</span>
+            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500">
+              <Receipt className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl sm:text-3xl font-black text-foreground">
+            {metrics.totalTransactions}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Completed service requests
+          </p>
+        </div>
+
+        {/* Success Rate */}
+        <div className="p-6 rounded-3xl bg-card border border-border/80 shadow-sm relative overflow-hidden space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Delivery Rate</span>
+            <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-500">
               <CheckCircle2 className="w-4 h-4" />
-            </span>
-          </div>
-          <div className="mt-4">
-            <div className="text-3xl font-extrabold text-foreground font-mono">
-              {data?.metrics.successfulTransactions ?? 0}
             </div>
-            <p className="text-xs text-muted-foreground mt-1.5">
-              Out of <span className="font-mono text-foreground font-medium">{data?.metrics.totalTransactions ?? 0}</span> total orders ({data?.metrics.successRate ?? 100}% delivery rate)
-            </p>
           </div>
-        </div>
-
-        {/* Metric 3: Quick Pay / Saved Contacts */}
-        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm flex flex-col justify-between bg-gradient-to-br from-primary/5 via-transparent to-transparent">
-          <div className="flex justify-between items-start">
-            <span className="text-xs font-semibold uppercase tracking-wider text-primary font-medium">
-              Saved Beneficiaries
-            </span>
-            <span className="p-2 rounded-xl bg-primary/10 text-primary">
-              <Smartphone className="w-4 h-4" />
-            </span>
-          </div>
-          <div className="mt-4">
-            <p className="text-sm text-muted-foreground">
-              Store frequently used phone numbers and meter accounts for instant 1-click checkout.
-            </p>
-            <Link 
-              href="/dashboard/saved" 
-              className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
-            >
-              Manage Saved Beneficiaries <ArrowUpRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
+          <p className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400">
+            {metrics.successRate}%
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Automated M-Pesa fulfillment
+          </p>
         </div>
 
       </div>
 
-      {/* Quick Services Launcher */}
+      {/* Quick Service Launchpad Cards */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold tracking-tight text-foreground">Quick Services</h2>
-          <span className="text-xs text-muted-foreground">Instant automated vending</span>
+          <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-primary" />
+            Instant Purchase Shortcuts
+          </h2>
+          <Link href="/services" className="text-xs font-semibold text-primary hover:underline">
+            All Services →
+          </Link>
         </div>
-        
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-          <Link href="/services/airtime" className="group bg-card border border-border hover:border-primary/50 hover:shadow-md rounded-2xl p-4 transition-all flex flex-col items-center text-center">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
-              <Smartphone className="w-6 h-6" />
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+          <Link 
+            href="/services/airtime"
+            className="p-5 rounded-3xl bg-card border border-border/80 hover:border-primary/50 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group"
+          >
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+              <Smartphone className="w-5 h-5" />
             </div>
-            <h3 className="font-semibold text-sm text-foreground">Airtime Top-Up</h3>
+            <h3 className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">Airtime Top-Up</h3>
             <p className="text-xs text-muted-foreground mt-0.5">Safaricom, Airtel, Telkom</p>
           </Link>
 
-          <Link href="/services/data" className="group bg-card border border-border hover:border-primary/50 hover:shadow-md rounded-2xl p-4 transition-all flex flex-col items-center text-center">
-            <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
-              <Wifi className="w-6 h-6" />
+          <Link 
+            href="/services/data"
+            className="p-5 rounded-3xl bg-card border border-border/80 hover:border-primary/50 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group"
+          >
+            <div className="w-10 h-10 rounded-2xl bg-sky-500/10 text-sky-500 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+              <Wifi className="w-5 h-5" />
             </div>
-            <h3 className="font-semibold text-sm text-foreground">Data Bundles</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">Daily, Weekly, Monthly</p>
+            <h3 className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">Data Bundles</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Daily, weekly & monthly</p>
           </Link>
 
-          <Link href="/services/electricity" className="group bg-card border border-border hover:border-primary/50 hover:shadow-md rounded-2xl p-4 transition-all flex flex-col items-center text-center">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
-              <Zap className="w-6 h-6" />
+          <Link 
+            href="/services/electricity"
+            className="p-5 rounded-3xl bg-card border border-border/80 hover:border-primary/50 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group"
+          >
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+              <Zap className="w-5 h-5" />
             </div>
-            <h3 className="font-semibold text-sm text-foreground">KPLC Electricity</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">Prepaid & Postpaid</p>
+            <h3 className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">Electricity Tokens</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">KPLC Prepaid & Postpaid</p>
           </Link>
 
-          <Link href="/services/tv" className="group bg-card border border-border hover:border-primary/50 hover:shadow-md rounded-2xl p-4 transition-all flex flex-col items-center text-center">
-            <div className="w-12 h-12 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
-              <Tv className="w-6 h-6" />
+          <Link 
+            href="/services/tv"
+            className="p-5 rounded-3xl bg-card border border-border/80 hover:border-primary/50 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group"
+          >
+            <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+              <Tv className="w-5 h-5" />
             </div>
-            <h3 className="font-semibold text-sm text-foreground">TV Subscriptions</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">DStv, GOtv, StarTimes</p>
-          </Link>
-
-          <Link href="/services/internet" className="group bg-card border border-border hover:border-primary/50 hover:shadow-md rounded-2xl p-4 transition-all flex flex-col items-center text-center">
-            <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
-              <Globe className="w-6 h-6" />
-            </div>
-            <h3 className="font-semibold text-sm text-foreground">Internet & Fiber</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">Zuku, Faiba, Pozi</p>
+            <h3 className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">TV Subscriptions</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">DStv, GOtv, Zuku, StarTimes</p>
           </Link>
         </div>
       </div>
 
-      {/* Recent Transactions Table */}
-      <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-border flex justify-between items-center">
+      {/* Recent Transactions List */}
+      <div className="bg-card border border-border/80 rounded-3xl shadow-sm overflow-hidden">
+        
+        <div className="p-6 border-b border-border/60 flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-foreground">Recent Transactions</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Latest purchases made on your account</p>
+            <h2 className="text-lg font-bold text-foreground">Recent Activity</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Your latest purchases and real-time statuses</p>
           </div>
           <Link href="/dashboard/transactions">
-            <Button variant="ghost" size="sm" className="text-primary hover:text-primary gap-1 font-medium text-xs">
-              View Full History <ChevronRight className="w-4 h-4" />
+            <Button variant="outline" size="sm" className="rounded-full text-xs font-semibold">
+              View Full History <ChevronRight className="w-3.5 h-3.5 ml-1" />
             </Button>
           </Link>
         </div>
 
-        {isLoading ? (
-          <div className="p-8 text-center space-y-3">
-            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-xs text-muted-foreground">Loading recent transactions...</p>
-          </div>
-        ) : data?.recentTransactions && data.recentTransactions.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="text-xs font-semibold text-muted-foreground uppercase bg-muted/40 border-b border-border">
-                <tr>
-                  <th className="px-5 py-3.5">Reference / M-Pesa</th>
-                  <th className="px-5 py-3.5">Service & Recipient</th>
-                  <th className="px-5 py-3.5 text-right">Amount</th>
-                  <th className="px-5 py-3.5">Date & Time</th>
-                  <th className="px-5 py-3.5 text-center">Status</th>
-                  <th className="px-5 py-3.5 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {data.recentTransactions.map((tx) => (
-                  <tr key={tx.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-1.5 font-mono text-xs font-medium text-foreground">
-                        <span>{tx.reference}</span>
-                        <button
-                          onClick={() => handleCopy(tx.reference)}
-                          className="text-muted-foreground hover:text-foreground p-0.5 rounded transition-colors"
-                          title="Copy reference"
-                        >
-                          {copiedRef === tx.reference ? (
-                            <Check className="w-3 h-3 text-emerald-500" />
-                          ) : (
-                            <Copy className="w-3 h-3" />
-                          )}
-                        </button>
-                      </div>
-                      {tx.paymentReference && (
-                        <div className="text-[11px] font-mono text-muted-foreground mt-0.5">
-                          M-Pesa: {tx.paymentReference}
-                        </div>
+        {data?.recentTransactions && data.recentTransactions.length > 0 ? (
+          <div className="divide-y divide-border/50">
+            {data.recentTransactions.slice(0, 6).map((tx) => (
+              <div 
+                key={tx.id} 
+                className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-muted/30 transition-colors"
+              >
+                <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+                  <div className="w-10 h-10 rounded-2xl bg-muted/80 flex items-center justify-center shrink-0 border border-border/60">
+                    {getServiceIcon(tx.serviceType)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-foreground truncate">
+                        {tx.serviceName}
+                      </span>
+                      {tx.productName && (
+                        <span className="text-xs text-muted-foreground truncate hidden sm:inline">
+                          • {tx.productName}
+                        </span>
                       )}
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="font-medium text-foreground text-sm">{tx.serviceName}</div>
-                      <div className="text-xs text-muted-foreground font-mono mt-0.5">
-                        {tx.destination}
-                        {tx.productName && <span className="ml-1.5 text-foreground/80">• {tx.productName}</span>}
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 text-right font-mono font-bold text-foreground">
-                      KES {tx.amount.toLocaleString()}
-                    </td>
-                    <td className="px-5 py-4 text-xs text-muted-foreground">
-                      {new Date(tx.date).toLocaleDateString('en-GB', {
-                        day: '2-digit',
-                        month: 'short',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </td>
-                    <td className="px-5 py-4 text-center">
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                      <span className="font-mono">{tx.destination}</span>
+                      <span>•</span>
+                      <span>{new Date(tx.date).toLocaleDateString("en-KE", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 pl-13 sm:pl-0">
+                  <div className="text-right">
+                    <p className="font-extrabold text-sm text-foreground">
+                      KES {Number(tx.amount).toLocaleString()}
+                    </p>
+                    <div className="mt-0.5">
                       {getStatusBadge(tx.status)}
-                    </td>
-                    <td className="px-5 py-4 text-right space-x-2">
-                      <Link href={`/receipt/${tx.reference}`}>
-                        <Button variant="outline" size="sm" className="h-7 px-2.5 text-xs">
-                          Receipt
-                        </Button>
-                      </Link>
-                      <Link href={getServiceLink(tx.serviceSlug)}>
-                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground">
-                          Repeat
-                        </Button>
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+
+                  <Link href={`/receipt/${tx.reference}`}>
+                    <Button variant="ghost" size="sm" className="rounded-full h-8 px-3 text-xs gap-1">
+                      Receipt <ArrowUpRight className="w-3.5 h-3.5" />
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
-          <div className="p-12 text-center space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center text-muted-foreground mx-auto">
-              <CreditCard className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-base text-foreground">No transactions yet</h3>
-              <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">
-                Once you make an airtime top-up, buy data bundles, or pay utility bills, your live receipts and delivery status will appear here.
-              </p>
-            </div>
-            <div>
-              <Link href="/services/airtime">
-                <Button className="gap-2 shadow-sm font-medium">
-                  <Smartphone className="w-4 h-4" /> Top-Up Airtime Now
-                </Button>
-              </Link>
-            </div>
+          <div className="p-12 text-center space-y-3">
+            <CreditCard className="w-10 h-10 text-muted-foreground/40 mx-auto" />
+            <h3 className="font-bold text-foreground text-sm">No transactions recorded yet</h3>
+            <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+              Your recent top-ups, bundles, and bills will automatically appear here once you make your first purchase.
+            </p>
+            <Link href="/services/airtime">
+              <Button size="sm" className="rounded-full mt-2">
+                Make Your First Purchase
+              </Button>
+            </Link>
           </div>
         )}
+
       </div>
 
     </div>
