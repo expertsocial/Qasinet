@@ -34,18 +34,18 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       valid: result.valid,
-      customerName: result.customerName || 'Verified Customer',
+      customerName: result.customerName || null,
       balance: result.balance || 0,
       accountNumber: cleanAccount,
-      service: telco
+      service: telco,
+      message: result.message || (result.valid ? 'Account verified successfully' : 'Account not found')
     }, { status: 200 });
 
   } catch (error: any) {
     console.error('[VerifyAccount API] Error:', error.message);
-    // Return friendly response so UI does not crash
     return NextResponse.json({
-      valid: true,
-      customerName: 'Customer Account',
+      valid: false,
+      message: error.message || 'Unable to verify account at this time. Please check the number and try again.',
       balance: 0
     }, { status: 200 });
   }

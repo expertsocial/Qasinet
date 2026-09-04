@@ -48,30 +48,31 @@ export default function TvPage() {
         })
       });
 
-      if (!res.ok) return null;
+      if (!res.ok) {
+        setCustomerName(null);
+        return null;
+      }
 
       const data = await res.json();
       if (data.valid && data.customerName) {
         setCustomerName(data.customerName);
         if (data.balance > 0) {
           setAmount(data.balance);
-        } else {
+        } else if (amount === 0) {
           // Standard package default if no balance returned
           if (provider === "dstv") setAmount(1050);
           else if (provider === "gotv") setAmount(650);
           else setAmount(500);
         }
-        return { customerName: data.customerName };
+        return { customerName: data.customerName, balance: data.balance };
       }
+      
+      setCustomerName(null);
       return null;
     } catch (e) {
       console.error("TV verification error:", e);
-      const fallbackName = "Verified Customer";
-      setCustomerName(fallbackName);
-      if (provider === "dstv") setAmount(1050);
-      else if (provider === "gotv") setAmount(650);
-      else setAmount(500);
-      return { customerName: fallbackName };
+      setCustomerName(null);
+      return null;
     }
   };
 

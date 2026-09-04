@@ -150,11 +150,13 @@ export class KyandaProvider {
   async verifyAccount(
     account: string,
     telco: string
-  ): Promise<{ valid: boolean; customerName?: string; balance?: number; rawResponse?: any }> {
+  ): Promise<{ valid: boolean; customerName?: string; balance?: number; message?: string; rawResponse?: any }> {
     const merchantId = this.client.getMerchantId();
     const formattedTelco = (telco || 'KPLC_PREPAID').toUpperCase();
+    const cleanAccount = account.trim();
+
     const signature = KyandaSignatureEngine.generateAccountQuerySignature(
-      account,
+      cleanAccount,
       formattedTelco,
       merchantId,
       this.securityKey
@@ -162,27 +164,54 @@ export class KyandaProvider {
 
     const payload = {
       MerchantID: merchantId,
-      account,
+      account: cleanAccount,
       telco: formattedTelco,
       signature
     };
 
     try {
       const response = await this.client.request<any>('/billing/v1/account-query', payload);
-      const name = response.customer_name || response.name || response.CustomerName || response.AccountName || response.details?.name || 'Verified Customer';
-      const balance = response.balance || response.amount_due || response.due_amount || 0;
+      
+      const name = 
+        response.customer_name || 
+        response.name || 
+        response.CustomerName || 
+        response.AccountName || 
+        response.account_name ||
+        response.details?.name || 
+        response.details?.customer_name ||
+        response.details?.CustomerName ||
+        response.details?.account_name;
+
+      const balance = response.balance || response.amount_due || response.due_amount || response.details?.balance || 0;
+      const statusCode = response.status_code || response.status || response.details?.status_code;
+
+      const isSuccess = Boolean(name) || statusCode === '0000' || statusCode === '1100' || response.status === 'success';
+
+      if (!isSuccess && !name) {
+        const errorMsg = response.transactiontxt || response.message || response.error || 'Account not found';
+        return {
+          valid: false,
+          message: errorMsg,
+          rawResponse: response
+        };
+      }
+
       return {
         valid: true,
-        customerName: name,
+        customerName: name || 'Verified Account Holder',
         balance: Number(balance) || 0,
         rawResponse: response
       };
     } catch (error: any) {
-      console.warn(`[KyandaProvider] verifyAccount failed for ${account} (${formattedTelco}):`, error.message);
+      console.warn(`[KyandaProvider] verifyAccount failed for ${cleanAccount} (${formattedTelco}):`, error.message);
+      
+      // If error specifically states account not found or invalid account
+      const errMsg = error.message || '';
       return {
-        valid: true,
-        customerName: 'Customer Account',
-        rawResponse: { note: 'Fallback validation' }
+        valid: false,
+        message: errMsg.includes('HTTP Error') ? 'Account or meter number not found' : errMsg,
+        rawResponse: { error: error.message }
       };
     }
   }

@@ -42,7 +42,10 @@ export default function ElectricityPage() {
         })
       });
 
-      if (!res.ok) return null;
+      if (!res.ok) {
+        setCustomerName(null);
+        return null;
+      }
 
       const data = await res.json();
       if (data.valid && data.customerName) {
@@ -50,15 +53,15 @@ export default function ElectricityPage() {
         if (type === "Postpaid" && data.balance > 0) {
           setAmount(data.balance);
         }
-        return { customerName: data.customerName };
+        return { customerName: data.customerName, balance: data.balance };
       }
+      
+      setCustomerName(null);
       return null;
     } catch (e) {
       console.error("Account verification error:", e);
-      // Graceful fallback
-      const fallbackName = "Verified Customer";
-      setCustomerName(fallbackName);
-      return { customerName: fallbackName };
+      setCustomerName(null);
+      return null;
     }
   };
 
