@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import { NetworkSelector, Network } from "@/components/services/NetworkSelector";
 import { PhoneInput } from "@/components/services/PhoneInput";
 import { AmountSelector } from "@/components/services/AmountSelector";
@@ -13,6 +14,8 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { isValidKenyanPhone } from "@/lib/validation";
 import { detectCarrier } from "@/lib/carrier";
+import { useAuth } from "@/lib/auth";
+import { getRememberedServiceDestination } from "@/lib/beneficiaries";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -22,6 +25,30 @@ export default function AirtimePage() {
   const [phone, setPhone] = useState("");
   const [isPhoneValid, setIsPhoneValid] = useState(false);
   const [amount, setAmount] = useState<number>(0);
+  const searchParams = useSearchParams();
+  const { user } = useAuth();
+
+  // Load URL phone param, remembered phone, or user phone
+  useEffect(() => {
+    const urlPhone = searchParams.get("phone");
+    if (urlPhone && isValidKenyanPhone(urlPhone)) {
+      setPhone(urlPhone);
+      setIsPhoneValid(true);
+      return;
+    }
+
+    const remembered = getRememberedServiceDestination("airtime");
+    if (remembered && isValidKenyanPhone(remembered.destination)) {
+      setPhone(remembered.destination);
+      setIsPhoneValid(true);
+      return;
+    }
+
+    if (user?.phone && isValidKenyanPhone(user.phone)) {
+      setPhone(user.phone);
+      setIsPhoneValid(true);
+    }
+  }, [searchParams, user]);
 
   const handleNext = () => setStep((s) => Math.min(s + 1, 5) as Step);
   const handleBack = () => setStep((s) => Math.max(s - 1, 1) as Step);

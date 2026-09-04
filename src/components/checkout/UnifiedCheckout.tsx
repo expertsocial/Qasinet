@@ -7,6 +7,7 @@ import { TransactionStatus } from "@/components/services/TransactionStatus";
 import { Button } from "@/components/ui/Button";
 import { detectCarrier } from "@/lib/carrier";
 import { isValidKenyanPhone, normalizeKenyanPhone } from "@/lib/validation";
+import { rememberServiceDestination } from "@/lib/beneficiaries";
 import { toast } from "react-hot-toast";
 
 interface UnifiedCheckoutProps {
@@ -81,6 +82,11 @@ export function UnifiedCheckout({ order, onEditDetails, onSuccess }: UnifiedChec
       ...order,
       paymentPhone: cleanPaymentPhone
     };
+
+    // Remember destination for this service
+    if (order.destination) {
+      rememberServiceDestination(order.serviceId, order.destination, order.provider);
+    }
     
     try {
       const idempotencyKey = PaymentService.generateIdempotencyKey();
