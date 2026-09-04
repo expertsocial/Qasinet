@@ -18,6 +18,27 @@ export interface KyandaTransactionStatusResponse {
   };
 }
 
+export function formatKyandaPhone(phone: string): string {
+  let cleaned = (phone || '').replace(/[^0-9]/g, '');
+  if (cleaned.startsWith('254')) {
+    cleaned = '0' + cleaned.slice(3);
+  } else if (cleaned.length === 9 && (cleaned.startsWith('7') || cleaned.startsWith('1'))) {
+    cleaned = '0' + cleaned;
+  }
+  return cleaned;
+}
+
+function getSanitizedCallbackUrl(): string | undefined {
+  let url = process.env.KYANDA_CALLBACK_URL;
+  if (!url) return undefined;
+  if (url.startsWith('https:https://')) {
+    url = url.replace('https:https://', 'https://');
+  } else if (url.startsWith('http:http://')) {
+    url = url.replace('http:http://', 'http://');
+  }
+  return url;
+}
+
 export class KyandaProvider {
   private client: KyandaClient;
   private securityKey: string;
@@ -64,23 +85,27 @@ export class KyandaProvider {
     productCode?: string
   ): Promise<{ merchant_reference: string }> {
     const merchantId = this.client.getMerchantId();
+    const formattedPhone = formatKyandaPhone(phone);
+    const formattedInitiator = formatKyandaPhone(initiatorPhone);
+    const formattedTelco = (telco || 'SAFARICOM').toUpperCase();
+
     const signature = KyandaSignatureEngine.generateAirtimeSignature(
       amount,
-      phone,
-      telco,
-      initiatorPhone,
+      formattedPhone,
+      formattedTelco,
+      formattedInitiator,
       merchantId,
       this.securityKey
     );
 
     const payload: any = {
       MerchantID: merchantId,
-      phone,
+      phone: formattedPhone,
       amount: String(amount),
-      telco,
-      initiatorPhone,
+      telco: formattedTelco,
+      initiatorPhone: formattedInitiator,
       signature,
-      callbackURL: process.env.KYANDA_CALLBACK_URL
+      callbackURL: getSanitizedCallbackUrl()
     };
 
     if (productCode) {
@@ -97,11 +122,14 @@ export class KyandaProvider {
     initiatorPhone: string
   ): Promise<{ merchant_reference: string }> {
     const merchantId = this.client.getMerchantId();
+    const formattedInitiator = formatKyandaPhone(initiatorPhone);
+    const formattedTelco = (telco || 'SAFARICOM').toUpperCase();
+
     const signature = KyandaSignatureEngine.generateBillSignature(
       amount,
       account,
-      telco,
-      initiatorPhone,
+      formattedTelco,
+      formattedInitiator,
       merchantId,
       this.securityKey
     );
@@ -110,12 +138,13 @@ export class KyandaProvider {
       MerchantID: merchantId,
       account,
       amount: String(amount),
-      telco,
-      initiatorPhone,
+      telco: formattedTelco,
+      initiatorPhone: formattedInitiator,
       signature,
-      callbackURL: process.env.KYANDA_CALLBACK_URL
+      callbackURL: getSanitizedCallbackUrl()
     };
 
     return this.client.request<{ merchant_reference: string }>('/billing/v1/bill/create', payload);
   }
 }
+
