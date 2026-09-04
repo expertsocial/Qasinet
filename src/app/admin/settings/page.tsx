@@ -28,6 +28,11 @@ export default async function AdminSettingsPage() {
     callback_url: ''
   };
 
+  const resendConfig = settingsMap['resend_config'] || {
+    api_key: process.env.RESEND_API_KEY || '',
+    from_email: process.env.RESEND_FROM_EMAIL || 'QasiNet <onboarding@resend.dev>'
+  };
+
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
@@ -43,7 +48,9 @@ export default async function AdminSettingsPage() {
       <SettingsFormClient 
         generalConfig={generalConfig} 
         kyandaConfig={kyandaConfig} 
+        resendConfig={resendConfig}
       />
     </div>
   );
+
 }

@@ -79,3 +79,36 @@ export async function testKyandaConnectionAction(apiUrl: string, merchantId: str
     return { success: false, message: err.message };
   }
 }
+
+export async function testResendConnectionAction(apiKey: string, fromEmail: string, toEmail: string) {
+  try {
+    const key = apiKey.trim() || process.env.RESEND_API_KEY;
+    if (!key) {
+      return { success: false, message: 'No Resend API key provided. Please enter a valid key.' };
+    }
+    const from = fromEmail.trim() || process.env.RESEND_FROM_EMAIL || 'QasiNet <onboarding@resend.dev>';
+    const { Resend } = await import('resend');
+    const resend = new Resend(key);
+    const { data, error } = await resend.emails.send({
+      from,
+      to: [toEmail],
+      subject: '✓ QasiNet Resend Integration Test',
+      html: `
+        <div style="font-family: sans-serif; padding: 20px; background: #111827; color: #f9fafb; border-radius: 12px;">
+          <h2 style="color: #10b981; margin-top: 0;">Resend API Verified!</h2>
+          <p>Your Resend API key has been successfully configured and tested for QasiNet digital services.</p>
+          <p style="font-size: 12px; color: #9ca3af;">Sent at: ${new Date().toISOString()}</p>
+        </div>
+      `,
+    });
+
+    if (error) {
+      return { success: false, message: error.message };
+    }
+
+    return { success: true, message: `Test email sent successfully (ID: ${data?.id})` };
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Unknown error' };
+  }
+}
+
