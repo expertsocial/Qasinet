@@ -1,20 +1,24 @@
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import Link from 'next/link';
 import { ArrowLeft, CheckCircle2, XCircle, Clock, Zap, Copy, AlertTriangle, ShieldCheck, FileText } from 'lucide-react';
 import { notFound } from 'next/navigation';
 import { TransactionActions } from './TransactionActions';
 
 export default async function TransactionDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const supabase = await createClient();
   const { id } = await params;
 
-  // Fetch transaction details
-  const { data: tx, error } = await supabase
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  const supabaseService = createSupabaseClient(supabaseUrl, supabaseServiceRoleKey);
+
+  // Fetch transaction details with related service and product
+  const { data: tx, error } = await supabaseService
     .from('transactions')
     .select(`
       *,
       services(name, slug, type),
-      profiles(full_name, phone, email)
+      products(name, provider_product_id)
     `)
     .eq('id', id)
     .single();
@@ -23,15 +27,26 @@ export default async function TransactionDetailPage({ params }: { params: Promis
     notFound();
   }
 
+  // Fetch customer profile separately if linked to a registered user
+  let profile: { full_name?: string; phone?: string; email?: string } | null = null;
+  if (tx.user_id) {
+    const { data: p } = await supabaseService
+      .from('profiles')
+      .select('full_name, phone, email')
+      .eq('id', tx.user_id)
+      .maybeSingle();
+    profile = p;
+  }
+
   // Fetch timeline events
-  const { data: events } = await supabase
+  const { data: events } = await supabaseService
     .from('transaction_events')
     .select('*')
     .eq('transaction_id', id)
     .order('created_at', { ascending: true });
 
   // Fetch raw webhook events
-  const { data: webhooks } = await supabase
+  const { data: webhooks } = await supabaseService
     .from('webhook_events')
     .select('*')
     .eq('provider_reference', tx.kyanda_reference || 'unknown')
@@ -105,11 +120,11 @@ export default async function TransactionDetailPage({ params }: { params: Promis
           <dl className="space-y-3 text-sm">
             <div className="flex justify-between border-b border-neutral-800/60 pb-3">
               <dt className="text-neutral-400">Account Name</dt>
-              <dd className="font-semibold text-white">{/* @ts-ignore */ tx.profiles?.full_name || tx.metadata?.accountName || 'Guest User'}</dd>
+              <dd className="font-semibold text-white">{profile?.full_name || tx.metadata?.accountName || 'Guest User'}</dd>
             </div>
             <div className="flex justify-between border-b border-neutral-800/60 pb-3">
               <dt className="text-neutral-400">Payer Phone</dt>
-              <dd className="font-mono text-white">{/* @ts-ignore */ tx.profiles?.phone || tx.guest_phone || 'Direct Checkout'}</dd>
+              <dd className="font-mono text-white">{profile?.phone || tx.guest_phone || 'Direct Checkout'}</dd>
             </div>
             <div className="flex justify-between pb-1">
               <dt className="text-neutral-400">Destination Account / Meter</dt>
@@ -188,7 +203,7 @@ export default async function TransactionDetailPage({ params }: { params: Promis
       <div className="bg-neutral-950 border border-neutral-800/80 rounded-3xl p-6 shadow-sm">
         <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-400 mb-6">Chronological Event Timeline</h2>
         <div className="space-y-6">
-          {events?.map((event, i) => (
+          {events?.map((event: any, i: number) => (
             <div key={event.id} className="relative flex gap-4">
               {i !== events.length - 1 && (
                 <div className="absolute left-[11px] top-6 bottom-[-24px] w-0.5 bg-neutral-800" />
@@ -223,7 +238,7 @@ export default async function TransactionDetailPage({ params }: { params: Promis
         <div className="bg-neutral-950 border border-neutral-800/80 rounded-3xl p-6 shadow-sm">
           <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-400 mb-4">Raw Webhook Payloads ({webhooks.length})</h2>
           <div className="space-y-4">
-            {webhooks.map(wh => (
+            {webhooks.map((wh: any) => (
               <div key={wh.id} className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-4">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-xs font-bold px-2.5 py-1 bg-blue-500/10 text-blue-400 rounded-lg border border-blue-500/20 font-mono">

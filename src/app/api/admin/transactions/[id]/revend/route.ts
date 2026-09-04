@@ -109,8 +109,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const orchestrator = new TransactionOrchestrator(supabaseService);
 
-    // Finalize directly to SUCCESS for airtime or if token is present
-    if (serviceType === 'airtime' || token) {
+    // Finalize directly to SUCCESS for airtime, data bundles, or if token is present
+    if (serviceType === 'airtime' || serviceType === 'data' || token) {
       await orchestrator.finalizeTransaction(
         tx.id,
         true,
