@@ -26,8 +26,9 @@ function LoginForm() {
 
     try {
       await login(emailOrPhone, password);
-      // Wait for next tick so cookies and state settle
-      router.push(searchParams.get("redirect") || "/admin");
+      const isGeorgeAdmin = emailOrPhone.trim().toLowerCase() === "sanaregeorge08@gmail.com";
+      const target = searchParams.get("redirect") || (isGeorgeAdmin ? "/admin" : "/dashboard");
+      router.push(target);
       router.refresh();
     } catch (err: any) {
       setError(err.message || "Failed to login. Please check your credentials.");

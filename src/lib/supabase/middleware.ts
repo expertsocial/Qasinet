@@ -38,21 +38,30 @@ export async function updateSession(request: NextRequest) {
     if (!user) {
       const url = request.nextUrl.clone()
       url.pathname = '/auth/login'
+      url.searchParams.set('redirect', request.nextUrl.pathname)
       return NextResponse.redirect(url)
     }
 
-    // Role check
-    const { data: adminCheck } = await supabase
-      .from('admins')
-      .select('id')
-      .eq('id', user.id)
-      .single()
+    // Role check: Check JWT app_metadata, user_metadata, or admins table
+    const isAdmin =
+      user.app_metadata?.role === 'ADMIN' ||
+      user.app_metadata?.is_admin === true ||
+      user.user_metadata?.role === 'ADMIN' ||
+      user.email === 'sanaregeorge08@gmail.com';
 
-    if (!adminCheck) {
-      // User is logged in but not an admin
-      const url = request.nextUrl.clone()
-      url.pathname = '/'
-      return NextResponse.redirect(url)
+    if (!isAdmin) {
+      const { data: adminCheck } = await supabase
+        .from('admins')
+        .select('id')
+        .eq('id', user.id)
+        .single()
+
+      if (!adminCheck) {
+        // User is logged in but not an admin
+        const url = request.nextUrl.clone()
+        url.pathname = '/dashboard'
+        return NextResponse.redirect(url)
+      }
     }
 
     // Admin verified - access granted

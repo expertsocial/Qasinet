@@ -54,7 +54,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq("id", sbUser.id)
         .single();
 
-      const userIsAdmin = !!adminRecord;
+      const userIsAdmin =
+        !!adminRecord ||
+        sbUser.app_metadata?.role === 'ADMIN' ||
+        sbUser.app_metadata?.is_admin === true ||
+        sbUser.user_metadata?.role === 'ADMIN' ||
+        sbUser.email === 'sanaregeorge08@gmail.com';
+
       setIsAdmin(userIsAdmin);
 
       setUser({
