@@ -129,10 +129,37 @@ export async function POST(req: NextRequest) {
 
         console.log(`[M-PESA Webhook] Vending initiated for ${tx.id}, Kyanda Ref: ${vendingResult.merchant_reference}`);
         
-        await supabaseService
-          .from('transactions')
-          .update({ kyanda_reference: vendingResult.merchant_reference })
-          .eq('id', tx.id);
+        const rawRes: any = vendingResult;
+        const token = rawRes?.Token || rawRes?.token || rawRes?.details?.Token || rawRes?.details?.token;
+        const units = rawRes?.Units || rawRes?.units || rawRes?.details?.Units || rawRes?.details?.units;
+
+        const metadata: any = {
+          merchant_reference: vendingResult.merchant_reference,
+          kyanda_response: vendingResult
+        };
+        if (token) metadata.token = token;
+        if (units) metadata.units = units;
+
+        // For airtime or if token/receipt is already returned, finalize immediately as SUCCESS
+        if (serviceType === 'airtime' || token) {
+          console.log(`[M-PESA Webhook] Finalizing transaction ${tx.id} to SUCCESS`);
+          await orchestrator.finalizeTransaction(
+            tx.id,
+            true,
+            undefined,
+            vendingResult.merchant_reference,
+            metadata
+          );
+        } else {
+          // For utility bills awaiting asynchronous token delivery
+          await supabaseService
+            .from('transactions')
+            .update({ 
+              kyanda_reference: vendingResult.merchant_reference,
+              metadata: metadata
+            })
+            .eq('id', tx.id);
+        }
 
       } catch (vendingError: any) {
         console.error(`[M-PESA Webhook] Background vending failed for ${tx.id}:`, vendingError.message);

@@ -60,8 +60,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ refe
       const updatedAt = new Date(tx.updated_at).getTime();
       const now = Date.now();
       
-      // If pending for more than 45 seconds without IPN, try manual fetch
-      if (now - updatedAt > 45000) {
+      // If pending for more than 2 seconds, fetch live status from Kyanda
+      if (now - updatedAt > 2000) {
         console.log(`[On-Demand Reconciliation] Fetching Kyanda status for ${reference}`);
         try {
           const kyandaProvider = new KyandaProvider();
@@ -72,7 +72,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ refe
           let isFinal = false;
           let isSuccess = false;
 
-          if (kyandaStatus === 'success' || kyandaStatus === '0000') {
+          if (kyandaStatus === 'success' || kyandaStatus === '0000' || kyandaStatus === 'completed') {
             isFinal = true;
             isSuccess = true;
           } else if (kyandaStatus === 'failed' || kyandaStatus.includes('error')) {
@@ -82,8 +82,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ refe
 
           if (isFinal) {
             const orchestrator = new TransactionOrchestrator(supabase);
-            const token = (response.details as any)?.Token || (response as any).Token;
-            const units = (response.details as any)?.Units || (response as any).Units;
+            const token = (response.details as any)?.Token || (response as any).Token || (response.details as any)?.token;
+            const units = (response.details as any)?.Units || (response as any).Units || (response.details as any)?.units;
             if (token) metadata.token = token;
             if (units) metadata.units = units;
 

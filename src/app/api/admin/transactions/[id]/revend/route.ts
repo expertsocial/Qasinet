@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { TransactionOrchestrator } from '@/lib/services/orchestrator';
 import { KyandaProvider } from '@/lib/providers/kyanda/provider';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
@@ -30,14 +31,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+    const supabaseService = createSupabaseClient(supabaseUrl, supabaseServiceRoleKey);
+
+    const isAdmin = 
+      user.app_metadata?.role === 'ADMIN' ||
+      user.app_metadata?.is_admin === true ||
+      user.email === 'sanaregeorge08@gmail.com';
+
+    if (!isAdmin) {
+      const { data: adminCheck } = await supabaseService.from('admins').select('id').eq('id', user.id).single();
+      if (!adminCheck) {
+        return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
+      }
+    }
+
     const { id } = await params;
     if (!id) {
       return NextResponse.json({ error: 'Transaction ID is required' }, { status: 400 });
     }
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-    const supabaseService = createSupabaseClient(supabaseUrl, supabaseServiceRoleKey);
 
     const { data: tx, error } = await supabaseService
       .from('transactions')
@@ -74,24 +87,49 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       );
     }
 
-    await supabaseService
-      .from('transactions')
-      .update({
-        status: 'VENDING_PENDING',
-        kyanda_reference: vendingResult.merchant_reference,
-        failure_reason: null
-      })
-      .eq('id', tx.id);
+    const rawRes: any = vendingResult;
+    const token = rawRes?.Token || rawRes?.token || rawRes?.details?.Token || rawRes?.details?.token;
+    const units = rawRes?.Units || rawRes?.units || rawRes?.details?.Units || rawRes?.details?.units;
+
+    const metadata: any = {
+      merchant_reference: vendingResult.merchant_reference,
+      kyanda_response: vendingResult
+    };
+    if (token) metadata.token = token;
+    if (units) metadata.units = units;
+
+    const orchestrator = new TransactionOrchestrator(supabaseService);
+
+    // Finalize directly to SUCCESS for airtime or if token is present
+    if (serviceType === 'airtime' || token) {
+      await orchestrator.finalizeTransaction(
+        tx.id,
+        true,
+        undefined,
+        vendingResult.merchant_reference,
+        metadata
+      );
+    } else {
+      await supabaseService
+        .from('transactions')
+        .update({
+          status: 'VENDING_PENDING',
+          kyanda_reference: vendingResult.merchant_reference,
+          metadata: metadata,
+          failure_reason: null
+        })
+        .eq('id', tx.id);
+    }
 
     await supabaseService.from('transaction_events').insert({
       transaction_id: tx.id,
-      status: 'VENDING_PENDING',
-      details: { message: 'Admin manual re-vend triggered', kyanda_ref: vendingResult.merchant_reference, user: user.email }
+      status: serviceType === 'airtime' || token ? 'SUCCESS' : 'VENDING_PENDING',
+      details: { message: 'Admin manual re-vend succeeded', kyanda_ref: vendingResult.merchant_reference, user: user.email }
     });
 
     return NextResponse.json({
       success: true,
-      message: `Vending re-initiated with Kyanda ref: ${vendingResult.merchant_reference}`,
+      message: `Vending re-vended successfully with Kyanda ref: ${vendingResult.merchant_reference}`,
       merchant_reference: vendingResult.merchant_reference
     }, { status: 200 });
 
