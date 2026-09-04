@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Download } from 'lucide-react';
+import { Download, Calendar, DollarSign, TrendingUp, CheckCircle2 } from 'lucide-react';
 import {
   AreaChart,
   Area,
@@ -34,12 +34,13 @@ export default function ReportsClient({ initialData }: { initialData: any[] }) {
     filteredData.forEach(tx => {
       const date = format(parseISO(tx.created_at), 'MMM dd');
       if (!map.has(date)) {
-        map.set(date, { date, revenue: 0, profit: 0 });
+        map.set(date, { date, revenue: 0, profit: 0, volume: 0 });
       }
-      if (tx.status === 'COMPLETED') {
+      if (tx.status === 'SUCCESS') {
         const current = map.get(date);
-        current.revenue += Number(tx.amount);
-        current.profit += Number(tx.fee);
+        current.revenue += Number(tx.amount || 0);
+        current.profit += Number(tx.profit || 0);
+        current.volume += 1;
       }
     });
     return Array.from(map.values());
@@ -48,14 +49,15 @@ export default function ReportsClient({ initialData }: { initialData: any[] }) {
   const servicePerformance = useMemo(() => {
     const map = new Map();
     filteredData.forEach(tx => {
-      if (tx.status === 'COMPLETED') {
-        const serviceName = tx.services?.name || 'Unknown';
+      if (tx.status === 'SUCCESS') {
+        const services: any = tx.services;
+        const serviceName = services?.name || (Array.isArray(services) && services[0]?.name) || 'Airtime';
         if (!map.has(serviceName)) {
           map.set(serviceName, { name: serviceName, volume: 0, revenue: 0 });
         }
         const current = map.get(serviceName);
         current.volume += 1;
-        current.revenue += Number(tx.amount);
+        current.revenue += Number(tx.amount || 0);
       }
     });
     return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue);
@@ -63,9 +65,9 @@ export default function ReportsClient({ initialData }: { initialData: any[] }) {
 
   const totals = useMemo(() => {
     return filteredData.reduce((acc, tx) => {
-      if (tx.status === 'COMPLETED') {
-        acc.revenue += Number(tx.amount);
-        acc.profit += Number(tx.fee);
+      if (tx.status === 'SUCCESS') {
+        acc.revenue += Number(tx.amount || 0);
+        acc.profit += Number(tx.profit || 0);
         acc.count += 1;
       }
       return acc;
@@ -73,15 +75,22 @@ export default function ReportsClient({ initialData }: { initialData: any[] }) {
   }, [filteredData]);
 
   const exportCSV = () => {
-    const headers = ['Date', 'Transaction ID', 'Amount', 'Fee', 'Status', 'Service'];
-    const rows = filteredData.map(tx => [
-      format(parseISO(tx.created_at), 'yyyy-MM-dd HH:mm:ss'),
-      tx.id,
-      tx.amount,
-      tx.fee,
-      tx.status,
-      tx.services?.name || 'Unknown'
-    ]);
+    const headers = ['Date', 'QSN Reference', 'M-Pesa Receipt', 'Destination', 'Service', 'Amount (KES)', 'Net Profit (KES)', 'Status'];
+    const rows = filteredData.map(tx => {
+      const services: any = tx.services;
+      const serviceName = services?.name || (Array.isArray(services) && services[0]?.name) || 'Airtime';
+      
+      return [
+        format(parseISO(tx.created_at), 'yyyy-MM-dd HH:mm:ss'),
+        tx.qsn_reference || tx.id,
+        tx.payment_reference || 'N/A',
+        `"${tx.destination || ''}"`,
+        `"${serviceName}"`,
+        tx.amount,
+        tx.profit || 0,
+        tx.status
+      ];
+    });
     
     const csvContent = [
       headers.join(','),
@@ -92,7 +101,7 @@ export default function ReportsClient({ initialData }: { initialData: any[] }) {
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `qasinet-report-${dateRange}-${format(new Date(), 'yyyyMMdd')}.csv`);
+    link.setAttribute('download', `qasinet-financial-ledger-${dateRange}-${format(new Date(), 'yyyyMMdd')}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -101,20 +110,22 @@ export default function ReportsClient({ initialData }: { initialData: any[] }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex bg-neutral-900 border border-neutral-800 rounded-lg p-1">
+      
+      {/* Date Toggle & Export Bar */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex bg-neutral-950 border border-neutral-800 rounded-xl p-1">
           <button
             onClick={() => setDateRange('7d')}
-            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-              dateRange === '7d' ? 'bg-neutral-800 text-white' : 'text-neutral-400 hover:text-neutral-300'
+            className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${
+              dateRange === '7d' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'text-neutral-400 hover:text-white'
             }`}
           >
             Last 7 Days
           </button>
           <button
             onClick={() => setDateRange('30d')}
-            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-              dateRange === '30d' ? 'bg-neutral-800 text-white' : 'text-neutral-400 hover:text-neutral-300'
+            className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${
+              dateRange === '30d' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'text-neutral-400 hover:text-white'
             }`}
           >
             Last 30 Days
@@ -123,76 +134,86 @@ export default function ReportsClient({ initialData }: { initialData: any[] }) {
         
         <button 
           onClick={exportCSV}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
+          className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-neutral-950 rounded-xl text-xs font-extrabold transition-all shadow-lg shadow-emerald-500/20"
         >
-          <Download size={16} />
-          Export CSV
+          <Download className="w-4 h-4" />
+          Export Financial CSV
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
-          <p className="text-sm font-medium text-neutral-400 mb-1">Gross Revenue</p>
-          <p className="text-3xl font-bold text-white">KES {totals.revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+      {/* Summary KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-neutral-950 border border-neutral-800/80 rounded-2xl p-6 shadow-sm">
+          <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2">Gross Revenue ({dateRange})</p>
+          <p className="text-3xl font-black text-white">
+            KES {totals.revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
         </div>
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
-          <p className="text-sm font-medium text-neutral-400 mb-1">Estimated Profit</p>
-          <p className="text-3xl font-bold text-emerald-400">KES {totals.profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+        
+        <div className="bg-neutral-950 border border-neutral-800/80 rounded-2xl p-6 shadow-sm">
+          <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2">Net Profit ({dateRange})</p>
+          <p className="text-3xl font-black text-emerald-400">
+            KES {totals.profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
         </div>
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
-          <p className="text-sm font-medium text-neutral-400 mb-1">Successful Transactions</p>
-          <p className="text-3xl font-bold text-white">{totals.count.toLocaleString()}</p>
+        
+        <div className="bg-neutral-950 border border-neutral-800/80 rounded-2xl p-6 shadow-sm">
+          <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2">Successful Transactions</p>
+          <p className="text-3xl font-black text-white">{totals.count.toLocaleString()}</p>
         </div>
       </div>
 
+      {/* Analytics Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
-          <h3 className="text-lg font-medium text-white mb-6">Revenue & Profit Over Time</h3>
+        
+        {/* Revenue & Profit Area Chart */}
+        <div className="bg-neutral-950 border border-neutral-800/80 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-base font-bold text-white mb-6">Revenue & Profit Trajectory</h2>
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={dailyRevenue} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart data={dailyRevenue} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
                     <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                   </linearGradient>
+                  <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#2dd4bf" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#2dd4bf" stopOpacity={0} />
+                  </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#262626" vertical={false} />
-                <XAxis dataKey="date" stroke="#525252" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#525252" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `K${(val/1000).toFixed(0)}k`} />
+                <XAxis dataKey="date" stroke="#737373" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis stroke="#737373" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(val) => `KES ${val}`} />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: '#171717', borderColor: '#262626', color: '#fff', borderRadius: '8px' }}
-                  itemStyle={{ color: '#e5e5e5' }}
+                  contentStyle={{ backgroundColor: '#0a0a0a', borderColor: '#262626', color: '#fff', borderRadius: '12px', fontSize: '12px' }}
                 />
-                <Legend />
-                <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" />
-                <Area type="monotone" dataKey="profit" name="Profit" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorProfit)" />
+                <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorRevenue)" />
+                <Area type="monotone" dataKey="profit" name="Profit" stroke="#2dd4bf" strokeWidth={2} fillOpacity={1} fill="url(#colorProfit)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
-          <h3 className="text-lg font-medium text-white mb-6">Revenue by Service</h3>
+        {/* Revenue by Service Bar Chart */}
+        <div className="bg-neutral-950 border border-neutral-800/80 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-base font-bold text-white mb-6">Revenue by Utility Category</h2>
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={servicePerformance} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <BarChart data={servicePerformance} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#262626" vertical={false} />
-                <XAxis dataKey="name" stroke="#525252" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#525252" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `K${(val/1000).toFixed(0)}k`} />
+                <XAxis dataKey="name" stroke="#737373" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis stroke="#737373" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(val) => `KES ${val}`} />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: '#171717', borderColor: '#262626', color: '#fff', borderRadius: '8px' }}
-                  cursor={{fill: '#262626'}}
+                  contentStyle={{ backgroundColor: '#0a0a0a', borderColor: '#262626', color: '#fff', borderRadius: '12px', fontSize: '12px' }}
+                  cursor={{ fill: '#262626', opacity: 0.4 }}
                 />
-                <Bar dataKey="revenue" name="Revenue (KES)" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="revenue" name="Revenue (KES)" fill="#10b981" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
+
       </div>
     </div>
   );

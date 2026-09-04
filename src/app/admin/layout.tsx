@@ -1,7 +1,8 @@
-import Link from 'next/link';
-import { LayoutDashboard, ReceiptText, Users, Network, Settings, LogOut, Sun, Moon, Layers, BarChart3, LifeBuoy } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { AdminSidebar } from './AdminSidebar';
+import { ShieldCheck, Activity, Bell } from 'lucide-react';
+import Link from 'next/link';
 
 export default async function AdminLayout({
   children,
@@ -12,7 +13,7 @@ export default async function AdminLayout({
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect('/login');
+    redirect('/auth/login');
   }
 
   // Fetch admin profile for name display
@@ -23,82 +24,50 @@ export default async function AdminLayout({
     .single();
 
   return (
-    <div className="flex h-screen bg-neutral-900 text-neutral-100 font-sans">
-      {/* Sidebar */}
-      <aside className="w-64 bg-neutral-950 border-r border-neutral-800 flex flex-col hidden md:flex">
-        <div className="p-6">
-          <Link href="/admin" className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-            <span className="text-emerald-500">QasiNet</span> Admin
-          </Link>
-        </div>
-        
-        <nav className="flex-1 px-4 space-y-1">
-          <Link href="/admin" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors">
-            <LayoutDashboard size={20} />
-            <span className="font-medium">Dashboard</span>
-          </Link>
-          <Link href="/admin/transactions" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors">
-            <ReceiptText size={20} />
-            <span className="font-medium">Transactions</span>
-          </Link>
-          <Link href="/admin/customers" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors">
-            <Users size={20} />
-            <span className="font-medium">Customers</span>
-          </Link>
-          <Link href="/admin/services" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors">
-            <Layers size={20} />
-            <span className="font-medium">Services & Pricing</span>
-          </Link>
-          <Link href="/admin/reports" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors">
-            <BarChart3 size={20} />
-            <span className="font-medium">Reports</span>
-          </Link>
-          <Link href="/admin/kyanda" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors">
-            <Network size={20} />
-            <span className="font-medium">Kyanda Ops</span>
-          </Link>
-          <Link href="/admin/support" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors">
-            <LifeBuoy size={20} />
-            <span className="font-medium">Support Tickets</span>
-          </Link>
-        </nav>
+    <div className="flex flex-col md:flex-row h-screen bg-neutral-950 text-neutral-100 font-sans overflow-hidden">
+      {/* Dynamic Sidebar */}
+      <AdminSidebar 
+        userEmail={user.email || 'admin@qasinet.com'} 
+        userName={profile?.full_name} 
+      />
 
-        <div className="p-4 border-t border-neutral-800">
-          <Link href="/admin/settings" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors mb-2">
-            <Settings size={20} />
-            <span className="font-medium">System Settings</span>
-          </Link>
-          <form action="/auth/signout" method="post">
-            <button type="submit" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-red-400 hover:text-red-300 hover:bg-neutral-800 transition-colors">
-              <LogOut size={20} />
-              <span className="font-medium">Sign Out</span>
-            </button>
-          </form>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* Top Header */}
-        <header className="h-16 border-b border-neutral-800 bg-neutral-950/50 backdrop-blur-md flex items-center justify-between px-6 shrink-0">
-          <div className="flex items-center gap-4">
-            <h1 className="text-lg font-semibold text-white">Operations Center</h1>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="text-sm text-neutral-400 font-medium">
-              {profile?.full_name || user.email}
+        <header className="h-16 border-b border-neutral-800/80 bg-neutral-950/80 backdrop-blur-xl flex items-center justify-between px-6 shrink-0 z-10">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block" />
+              <span>Engine Online</span>
             </div>
-            <div className="h-8 w-8 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold">
+            <span className="hidden sm:inline text-neutral-500 text-xs">|</span>
+            <span className="hidden sm:inline text-xs text-neutral-400 font-medium">Production Safaricom & Kyanda Gateway</span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Link 
+              href="/admin/kyanda" 
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-neutral-900 border border-neutral-800 text-neutral-300 hover:text-white hover:border-neutral-700 transition-colors"
+            >
+              <Activity className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Float Monitor</span>
+            </Link>
+
+            <div className="h-8 w-8 rounded-full bg-neutral-900 border border-neutral-800 flex items-center justify-center text-neutral-400 hover:text-white cursor-pointer transition-colors">
+              <Bell className="w-4 h-4" />
+            </div>
+
+            <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold text-xs shadow-md shadow-emerald-500/20">
               {(profile?.full_name?.[0] || user.email?.[0] || 'A').toUpperCase()}
             </div>
           </div>
         </header>
 
-        {/* Scrollable Area */}
-        <div className="flex-1 overflow-auto p-6 bg-neutral-900/50">
+        {/* Scrollable Work Area */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 bg-neutral-900/40">
           {children}
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
