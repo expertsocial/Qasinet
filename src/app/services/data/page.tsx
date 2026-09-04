@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { NetworkSelector, Network } from "@/components/services/NetworkSelector";
 import { PhoneInput } from "@/components/services/PhoneInput";
@@ -8,7 +8,7 @@ import { BundleSelector, DataBundle } from "@/components/services/BundleSelector
 import { UnifiedCheckout } from "@/components/checkout/UnifiedCheckout";
 import { OrderPayload } from "@/lib/payment";
 import { Button, buttonVariants } from "@/components/ui/Button";
-import { ArrowLeft, ArrowRight, Wifi, RefreshCw } from "lucide-react";
+import { ArrowLeft, ArrowRight, Wifi, RefreshCw, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { isValidKenyanPhone } from "@/lib/validation";
@@ -16,50 +16,33 @@ import { detectCarrier } from "@/lib/carrier";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
-// Mock bundles for demo purposes
-const MOCK_BUNDLES: Record<string, DataBundle[]> = {
-  Safaricom: [
-    { id: "saf-d-1", name: "Daily 50MB", allowance: "50 MB", validity: "24 Hours", price: 20, category: "Daily" },
-    { id: "saf-d-2", name: "Daily 200MB", allowance: "200 MB", validity: "24 Hours", price: 50, category: "Daily" },
-    { id: "saf-d-3", name: "Daily 1GB", allowance: "1 GB", validity: "24 Hours", price: 99, category: "Daily" },
-    { id: "saf-w-1", name: "Weekly 350MB", allowance: "350 MB", validity: "7 Days", price: 99, category: "Weekly" },
-    { id: "saf-w-2", name: "Weekly 1GB", allowance: "1 GB", validity: "7 Days", price: 250, category: "Weekly" },
-    { id: "saf-w-3", name: "Weekly 3GB", allowance: "3 GB", validity: "7 Days", price: 500, category: "Weekly" },
-    { id: "saf-m-1", name: "Monthly 1.2GB", allowance: "1.2 GB", validity: "30 Days", price: 500, category: "Monthly" },
-    { id: "saf-m-2", name: "Monthly 3GB", allowance: "3 GB", validity: "30 Days", price: 1000, category: "Monthly" },
-    { id: "saf-m-3", name: "Monthly 10GB", allowance: "10 GB", validity: "30 Days", price: 2000, category: "Monthly" },
-    { id: "saf-s-1", name: "Giga Bundle", allowance: "15 GB", validity: "30 Days", price: 2500, category: "Special" },
-  ],
-  Airtel: [
-    { id: "air-d-1", name: "Bamba Daily 100MB", allowance: "100 MB", validity: "24 Hours", price: 20, category: "Daily" },
-    { id: "air-d-2", name: "Bamba Daily 1.5GB", allowance: "1.5 GB", validity: "24 Hours", price: 100, category: "Daily" },
-    { id: "air-w-1", name: "Bamba Weekly 500MB", allowance: "500 MB", validity: "7 Days", price: 100, category: "Weekly" },
-    { id: "air-w-2", name: "Bamba Weekly 2GB", allowance: "2 GB", validity: "7 Days", price: 250, category: "Weekly" },
-    { id: "air-m-1", name: "Bamba Monthly 2GB", allowance: "2 GB", validity: "30 Days", price: 500, category: "Monthly" },
-    { id: "air-m-2", name: "Bamba Monthly 6GB", allowance: "6 GB", validity: "30 Days", price: 1000, category: "Monthly" },
-  ],
-  Telkom: [
-    { id: "tel-d-1", name: "T-Kash Daily 150MB", allowance: "150 MB", validity: "24 Hours", price: 20, category: "Daily" },
-    { id: "tel-w-1", name: "T-Kash Weekly 1GB", allowance: "1 GB", validity: "7 Days", price: 100, category: "Weekly" },
-    { id: "tel-m-1", name: "T-Kash Monthly 5GB", allowance: "5 GB", validity: "30 Days", price: 500, category: "Monthly" },
-  ],
-  Equitel: [
-    { id: "equ-d-1", name: "MyData Daily 80MB", allowance: "80 MB", validity: "24 Hours", price: 20, category: "Daily" },
-    { id: "equ-m-1", name: "MyData Monthly 1.5GB", allowance: "1.5 GB", validity: "30 Days", price: 500, category: "Monthly" },
-  ],
-  Faiba: [
-    { id: "fai-d-1", name: "Faiba Daily 1GB", allowance: "1 GB", validity: "24 Hours", price: 50, category: "Daily" },
-    { id: "fai-w-1", name: "Faiba Weekly 8GB", allowance: "8 GB", validity: "7 Days", price: 300, category: "Weekly" },
-    { id: "fai-m-1", name: "Faiba Monthly 25GB", allowance: "25 GB", validity: "30 Days", price: 1000, category: "Monthly" },
-  ]
-};
-
 export default function DataPage() {
   const [step, setStep] = useState<Step>(1);
   const [network, setNetwork] = useState<Network | null>(null);
   const [phone, setPhone] = useState("");
   const [isPhoneValid, setIsPhoneValid] = useState(false);
   const [bundle, setBundle] = useState<DataBundle | null>(null);
+  const [networkBundles, setNetworkBundles] = useState<Record<string, DataBundle[]>>({});
+  const [isLoadingBundles, setIsLoadingBundles] = useState(true);
+
+  // Fetch live bundles from database
+  useEffect(() => {
+    async function loadBundles() {
+      try {
+        setIsLoadingBundles(true);
+        const res = await fetch('/api/services/data', { cache: 'no-store' });
+        const data = await res.json();
+        if (data && data.networks) {
+          setNetworkBundles(data.networks);
+        }
+      } catch (err) {
+        console.error('Failed to load live data bundles:', err);
+      } finally {
+        setIsLoadingBundles(false);
+      }
+    }
+    loadBundles();
+  }, []);
 
   const handleNext = () => setStep((s) => Math.min(s + 1, 5) as Step);
   const handleBack = () => setStep((s) => Math.max(s - 1, 1) as Step);
@@ -78,10 +61,13 @@ export default function DataPage() {
   const isStep2Valid = isPhoneValid;
   const isStep3Valid = bundle !== null;
 
+  const currentBundles = networkBundles[effectiveNetwork] || [];
+
   const orderPayload: OrderPayload = {
-    serviceId: `${effectiveNetwork.toLowerCase()}-airtime`,
+    serviceId: `${effectiveNetwork.toLowerCase()}-data`,
     serviceName: `${effectiveNetwork} Data Bundle`,
     provider: effectiveNetwork,
+    productId: bundle?.id,
     destination: phone,
     amount: bundle?.price || 0,
     fees: 0,
@@ -91,8 +77,6 @@ export default function DataPage() {
       validity: bundle?.validity,
     }
   };
-
-  const bundlesForNetwork = MOCK_BUNDLES[effectiveNetwork] || MOCK_BUNDLES.Safaricom || [];
 
   return (
     <main className="min-h-screen bg-background pt-24 pb-16">
@@ -264,13 +248,35 @@ export default function DataPage() {
             </div>
 
             <div className="bg-card border border-border/50 rounded-3xl p-6 md:p-8 shadow-sm">
-              <h2 className="text-xl font-semibold mb-6">Select {effectiveNetwork} Package</h2>
-              <BundleSelector 
-                bundles={bundlesForNetwork}
-                selectedBundleId={bundle?.id || null}
-                onSelect={setBundle}
-              />
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold">Select {effectiveNetwork} Package</h2>
+                {isLoadingBundles && (
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading live packages...
+                  </span>
+                )}
+              </div>
+
+              {isLoadingBundles ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 py-8">
+                  {[1, 2, 3, 4, 5, 6].map((i) => (
+                    <div key={i} className="h-36 rounded-2xl bg-secondary/40 animate-pulse border border-border/40" />
+                  ))}
+                </div>
+              ) : currentBundles.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground space-y-2">
+                  <p className="font-semibold">No packages currently available for {effectiveNetwork}.</p>
+                  <p className="text-xs">Please select another provider or check back shortly.</p>
+                </div>
+              ) : (
+                <BundleSelector 
+                  bundles={currentBundles}
+                  selectedBundleId={bundle?.id || null}
+                  onSelect={setBundle}
+                />
+              )}
             </div>
+
             <div className="flex flex-col-reverse sm:flex-row justify-between gap-4">
               <Button onClick={handleBack} variant="outline" size="lg">
                 Back
@@ -294,3 +300,4 @@ export default function DataPage() {
     </main>
   );
 }
+

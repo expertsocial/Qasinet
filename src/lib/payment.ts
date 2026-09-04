@@ -16,6 +16,7 @@ export interface OrderPayload {
   amount: number;
   fees: number;
   paymentPhone: string;
+  productId?: string;
   metadata?: Record<string, any>;
 }
 
@@ -45,8 +46,7 @@ export class PaymentService {
   static async initiatePayment(order: OrderPayload, idempotencyKey: string): Promise<PaymentInitResult> {
     const payload = {
       serviceSlug: order.serviceId,
-      // If order.metadata.productId exists use it, otherwise undefined
-      productId: order.metadata?.productId || undefined,
+      productId: order.productId || order.metadata?.productId || undefined,
       destination: order.destination,
       amount: order.amount,
       guestPhone: order.paymentPhone

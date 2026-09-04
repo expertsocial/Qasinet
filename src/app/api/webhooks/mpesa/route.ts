@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
 
       console.log(`[Kyanda Vending Payload] Type: ${serviceType}, Amount: ${tx.amount}, Dest: ${tx.destination}, Telco: ${telco}, Initiator: ${initiatorPhone}`);
 
-      if (serviceType === 'airtime') {
+      if (serviceType === 'airtime' || serviceType === 'data') {
         vendingResult = await kyandaProvider.buyAirtime(
           tx.amount,
           tx.destination,
@@ -138,8 +138,8 @@ export async function POST(req: NextRequest) {
       if (token) metadata.token = token;
       if (units) metadata.units = units;
 
-      // For airtime or if token/receipt is already returned, finalize immediately as SUCCESS
-      if (serviceType === 'airtime' || token) {
+      // For airtime/data or if token/receipt is already returned, finalize immediately as SUCCESS
+      if (serviceType === 'airtime' || serviceType === 'data' || token) {
         console.log(`[M-PESA Webhook] Finalizing transaction ${tx.id} to SUCCESS`);
         await orchestrator.finalizeTransaction(
           tx.id,
