@@ -140,6 +140,15 @@ export function Navbar() {
                 userMenuOpen && "pointer-events-auto opacity-100 translate-y-0"
               )}>
                 <div className="glass-panel rounded-xl shadow-premium-soft overflow-hidden flex flex-col p-1 border border-border">
+                  {user.isAdmin && (
+                    <Link 
+                      href="/admin"
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-amber-400 font-semibold hover:bg-amber-500/10 rounded-lg transition-colors border-b border-border/50 mb-1"
+                    >
+                      <LayoutDashboard className="w-4 h-4 text-amber-400" />
+                      Admin Panel
+                    </Link>
+                  )}
                   <Link 
                     href="/dashboard"
                     className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-accent rounded-lg transition-colors"
@@ -242,6 +251,14 @@ export function Navbar() {
           
           {user ? (
             <div className="flex flex-col gap-3 pb-2">
+              {user.isAdmin && (
+                <Link href="/admin" onClick={() => setMobileMenuOpen(false)}>
+                  <Button variant="outline" className="w-full justify-start gap-2 border-amber-500/30 text-amber-400">
+                    <LayoutDashboard className="w-4 h-4 text-amber-400" />
+                    Admin Panel
+                  </Button>
+                </Link>
+              )}
               <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
                 <Button variant="outline" className="w-full justify-start gap-2">
                   <LayoutDashboard className="w-4 h-4" />

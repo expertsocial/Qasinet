@@ -6,15 +6,18 @@ import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Loader2, ArrowRight } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
-export default function LoginPage() {
+function LoginForm() {
   const [emailOrPhone, setEmailOrPhone] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { login } = useAuth();
+  const { login, isAdmin } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectUrl = searchParams.get("redirect") || (emailOrPhone === "sanaregeorge08@gmail.com" ? "/admin" : "/dashboard");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +26,9 @@ export default function LoginPage() {
 
     try {
       await login(emailOrPhone, password);
-      router.push("/dashboard");
+      // Wait for next tick so cookies and state settle
+      router.push(searchParams.get("redirect") || "/admin");
+      router.refresh();
     } catch (err: any) {
       setError(err.message || "Failed to login. Please check your credentials.");
     } finally {
@@ -110,5 +115,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-neutral-500">Loading...</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }
