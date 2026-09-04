@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import PricingFormClient from './PricingFormClient';
 
-export default async function PricingPage({ params }: { params: { id: string } }) {
+export default async function PricingPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const supabase = await createClient();
 
   const { data: service } = await supabase
@@ -13,7 +14,7 @@ export default async function PricingPage({ params }: { params: { id: string } }
       *,
       service_providers (name)
     `)
-    .eq('id', params.id)
+    .eq('id', id)
     .single();
 
   if (!service) {
@@ -24,14 +25,14 @@ export default async function PricingPage({ params }: { params: { id: string } }
   const { data: products } = await supabase
     .from('products')
     .select('*')
-    .eq('service_id', params.id)
+    .eq('service_id', id)
     .order('name');
 
   // Fetch existing pricing
   const { data: pricingRecords } = await supabase
     .from('pricing')
     .select('*')
-    .eq('service_id', params.id);
+    .eq('service_id', id);
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
