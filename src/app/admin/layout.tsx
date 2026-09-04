@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { AdminSidebar } from './AdminSidebar';
-import { ShieldCheck, Activity, Bell } from 'lucide-react';
+import { AdminHeaderControls } from '@/components/admin/AdminHeaderControls';
 import Link from 'next/link';
 
 export default async function AdminLayout({
@@ -44,23 +44,9 @@ export default async function AdminLayout({
             <span className="hidden sm:inline text-xs text-neutral-400 font-medium">Production Safaricom & Kyanda Gateway</span>
           </div>
 
-          <div className="flex items-center gap-3">
-            <Link 
-              href="/admin/kyanda" 
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-neutral-900 border border-neutral-800 text-neutral-300 hover:text-white hover:border-neutral-700 transition-colors"
-            >
-              <Activity className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Float Monitor</span>
-            </Link>
-
-            <div className="h-8 w-8 rounded-full bg-neutral-900 border border-neutral-800 flex items-center justify-center text-neutral-400 hover:text-white cursor-pointer transition-colors">
-              <Bell className="w-4 h-4" />
-            </div>
-
-            <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold text-xs shadow-md shadow-emerald-500/20">
-              {(profile?.full_name?.[0] || user.email?.[0] || 'A').toUpperCase()}
-            </div>
-          </div>
+          <AdminHeaderControls 
+            userInitials={(profile?.full_name?.[0] || user.email?.[0] || 'A').toUpperCase()} 
+          />
         </header>
 
         {/* Scrollable Work Area */}

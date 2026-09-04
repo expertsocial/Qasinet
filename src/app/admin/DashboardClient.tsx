@@ -13,6 +13,9 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+import { sounds } from '@/lib/sounds';
+import { FloatTopUpModal } from '@/components/admin/FloatTopUpModal';
+
 interface TransactionItem {
   id: string;
   qsn_reference: string;
@@ -48,8 +51,30 @@ const COLORS = ['#10b981', '#06b6d4', '#8b5cf6', '#f59e0b', '#ec4899', '#3b82f6'
 
 export default function DashboardClient({ summary, chartData, serviceData, recentTransactions }: DashboardProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [autoRefreshSecs, setAutoRefreshSecs] = useState<number>(30); // 30s default
+  const [secondsRemaining, setSecondsRemaining] = useState<number>(30);
+  const [isTopUpOpen, setIsTopUpOpen] = useState(false);
 
-  const handleRefresh = () => {
+  // Auto-refresh countdown
+  React.useEffect(() => {
+    if (autoRefreshSecs === 0) return;
+
+    const timer = setInterval(() => {
+      setSecondsRemaining((prev) => {
+        if (prev <= 1) {
+          sounds.playTap();
+          window.location.reload();
+          return autoRefreshSecs;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [autoRefreshSecs]);
+
+  const handleManualRefresh = () => {
+    sounds.playTap();
     setIsRefreshing(true);
     window.location.reload();
   };
@@ -60,8 +85,17 @@ export default function DashboardClient({ summary, chartData, serviceData, recen
 
   const isFloatLow = summary.kyandaBalance < 500 && summary.kyandaStatus === 'Connected';
 
+  // Float runway estimate: daily sales volume vs current float balance
+  const dailyBurn = summary.todaySales > 0 ? summary.todaySales : 250;
+  const floatRunwayDays = (summary.kyandaBalance / dailyBurn).toFixed(1);
+
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-12">
+      <FloatTopUpModal 
+        isOpen={isTopUpOpen} 
+        onClose={() => setIsTopUpOpen(false)} 
+        currentFloat={summary.kyandaBalance} 
+      />
       
       {/* Top Controls & Greeting */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -77,7 +111,35 @@ export default function DashboardClient({ summary, chartData, serviceData, recen
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          {/* Auto Refresh Toggle */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-neutral-900 border border-neutral-800 text-xs text-neutral-400">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Auto:</span>
+            <select
+              value={autoRefreshSecs}
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                setAutoRefreshSecs(val);
+                setSecondsRemaining(val);
+              }}
+              className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
+            >
+              <option value={15} className="bg-neutral-900">15s ({secondsRemaining}s)</option>
+              <option value={30} className="bg-neutral-900">30s ({secondsRemaining}s)</option>
+              <option value={60} className="bg-neutral-900">60s ({secondsRemaining}s)</option>
+              <option value={0} className="bg-neutral-900">Off</option>
+            </select>
+          </div>
+
+          <button
+            onClick={() => setIsTopUpOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-lg shadow-emerald-600/20"
+          >
+            <Zap className="w-3.5 h-3.5" />
+            <span>Top-Up Float</span>
+          </button>
+
           <Link
             href="/admin/transactions?status=VENDING_PENDING"
             className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 transition-all"
@@ -87,12 +149,12 @@ export default function DashboardClient({ summary, chartData, serviceData, recen
           </Link>
 
           <button
-            onClick={handleRefresh}
+            onClick={handleManualRefresh}
             disabled={isRefreshing}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-neutral-900 border border-neutral-800 text-neutral-300 hover:text-white hover:border-neutral-700 transition-all shadow-sm"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-neutral-900 border border-neutral-800 text-neutral-300 hover:text-white hover:border-neutral-700 transition-all shadow-sm"
           >
             <RefreshCw className={cn("w-3.5 h-3.5", isRefreshing && "animate-spin text-emerald-400")} />
-            <span>Refresh</span>
+            <span>Sync</span>
           </button>
         </div>
       </div>
@@ -179,7 +241,7 @@ export default function DashboardClient({ summary, chartData, serviceData, recen
             KES {summary.kyandaBalance.toLocaleString()}
           </div>
           <div className="mt-2 flex items-center justify-between text-xs">
-            <span className="text-neutral-400">Earnings: KES {summary.kyandaEarnings.toLocaleString()}</span>
+            <span className="text-emerald-400/90 font-medium">Runway: ~{floatRunwayDays} days</span>
             <span className={cn("font-bold text-[11px]", summary.kyandaStatus === 'Connected' ? "text-emerald-400" : "text-red-400")}>
               {summary.kyandaStatus}
             </span>
