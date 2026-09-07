@@ -51,3 +51,10 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS enforce_transaction_state_machine ON transactions;
+CREATE TRIGGER enforce_transaction_state_machine
+  BEFORE UPDATE ON transactions
+  FOR EACH ROW
+  EXECUTE FUNCTION check_transaction_state_transition();
+
