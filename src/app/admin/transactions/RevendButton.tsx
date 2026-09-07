@@ -26,6 +26,7 @@ export function RevendButton({
   // Eligible for re-vend if it has a payment reference and is in a failed/timeout/pending state
   const isFailedOrPending = [
     'VENDING_FAILED',
+    'VENDING_FAILED_REFUND_PENDING',
     'TIMEOUT',
     'UNKNOWN',
     'PAYMENT_CONFIRMED',

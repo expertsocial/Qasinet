@@ -1,5 +1,6 @@
 import { KyandaClient } from './client';
 import { KyandaSignatureEngine } from './signature';
+import { getPaybillAccountField } from './paybill-config';
 
 export interface KyandaAccountBalanceResponse {
   Account_Bal: number;
@@ -141,11 +142,13 @@ export class KyandaProvider {
     );
 
     // Kyanda /billing/v1/bill/create strictly accepts:
-    // MerchantID, account, amount, telco, initiatorPhone, signature.
+    // MerchantID, account (or phone), amount, telco, initiatorPhone, signature.
+    // The meter field name ('account' vs 'phone') is resolved via getPaybillAccountField().
     // callbackURL is NOT an accepted parameter in the request body.
+    const accountField = getPaybillAccountField();
     const payload: any = {
       MerchantID: merchantId,
-      account,
+      [accountField]: account,
       amount: cleanAmount,
       telco: formattedTelco,
       initiatorPhone: formattedInitiator,

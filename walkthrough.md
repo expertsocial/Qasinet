@@ -104,3 +104,37 @@ I have built the backend foundation, integrating Supabase and robust Next.js API
 > To proceed, you must run `npx supabase init`, `npx supabase link --project-ref your_project_ref`, and then `npx supabase db push` to push this new schema to your hosted Supabase instance.
 > 
 > You also need to configure `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` in your `.env.local` file (I've added placeholders to `.env.example`).
+
+---
+
+## Phase 8: Kenya Power (KPLC) Pay Bill Integration via Kyanda
+
+We have implemented electricity token (Kenya Power / KPLC) purchases on Qasinet via the Kyanda Pay Bill API (`POST /billing/v1/bill/create`), completely isolating it from existing Airtime and Daraja STK push logic.
+
+### Key Highlights & Architecture
+
+1. **Kyanda Pay Bill Account Field Verification (Sandbox / Live API Test)**
+   - **Discrepancy Tested**: Kyanda API docs specify `"account"` in the schema description (Section B) but use `"phone"` in an example request snippet.
+   - **Live Test Results**:
+     - Testing with `{"account": "14123456789"}` succeeded in payload parsing and signature validation on `https://api.kyanda.app/billing/v1/bill/create` (returning `status_code: 1107: Insufficient Funds!` with generated transaction ID `QASAPI7050726`).
+     - Testing with `{"phone": "14123456789"}` was rejected with `1104: Signature Mismatch!`.
+     - **Conclusion**: Kyanda expects `"account"`.
+   - **Zero-Downtime Config**: Created [paybill-config.ts](file:///c:/Users/HomePC/Desktop/Qasinet/src/lib/providers/kyanda/paybill-config.ts) exporting `getPaybillAccountField()`, which reads `KYANDA_PAYBILL_ACCOUNT_FIELD` from environment variables (defaulting to `'account'`).
+
+2. **Unverified Channel Code Safeguard**
+   - Implemented `getKplcChannelCode(type: 'prepaid' | 'postpaid')` reading `KYANDA_KPLC_PREPAID_CHANNEL` and `KYANDA_KPLC_POSTPAID_CHANNEL`.
+   - Explicitly warns at startup and runtime if not set, preventing guessed or erroneous telco codes in production.
+
+3. **Explicit Refund & Reversal Path (`VENDING_FAILED_REFUND_PENDING`)**
+   - Added explicit state `VENDING_FAILED_REFUND_PENDING` across the state machine, [orchestrator.ts](file:///c:/Users/HomePC/Desktop/Qasinet/src/lib/services/orchestrator.ts), [Admin Transactions](file:///c:/Users/HomePC/Desktop/Qasinet/src/app/admin/transactions/page.tsx), and customer [Receipt Page](file:///c:/Users/HomePC/Desktop/Qasinet/src/app/receipt/%5Bid%5D/page.tsx).
+   - If customer M-Pesa payment is confirmed but Kyanda Pay Bill fails (insufficient float `1107`, invalid meter `8001`, invalid telco `8003`, or network error), the transaction transitions directly to `VENDING_FAILED_REFUND_PENDING`.
+   - Admin portal allows filtering directly by `Refund / Re-vend Pending` and triggering 1-click re-vending via [RevendButton.tsx](file:///c:/Users/HomePC/Desktop/Qasinet/src/app/admin/transactions/RevendButton.tsx).
+   - Created database migration [20260907160000_add_vending_failed_refund_pending.sql](file:///c:/Users/HomePC/Desktop/Qasinet/supabase/migrations/20260907160000_add_vending_failed_refund_pending.sql).
+
+4. **Reconciliation Safety Net**
+   - In [reconciliation.ts](file:///c:/Users/HomePC/Desktop/Qasinet/src/lib/services/reconciliation.ts), added a background safety net polling `/billing/v1/transaction-check` for orders still in `VENDING_PENDING` after 5–10 minutes.
+   - Extracts raw tokens, units, and receipts from check status responses and updates transactions to `SUCCESS`.
+
+5. **Token Receipt Display**
+   - In [page.tsx](file:///c:/Users/HomePC/Desktop/Qasinet/src/app/receipt/%5Bid%5D/page.tsx), displays the raw token string directly from the logged payload without enforcing rigid 4-digit hyphens.
+

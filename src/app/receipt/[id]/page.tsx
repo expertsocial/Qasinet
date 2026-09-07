@@ -43,6 +43,7 @@ interface TransactionDetails {
   };
   createdAt?: string;
   message?: string;
+  failure_reason?: string;
 }
 
 export default function ReceiptPage({ params }: { params: Promise<{ id: string }> }) {
@@ -185,19 +186,16 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
     }
   };
 
-  // Format token into readable 4-digit blocks
+  // Kyanda docs don't show a real KPLC IPN sample, so display the raw token string from the logged payload
   const formatTokenDisplay = (rawToken: string) => {
-    const cleaned = rawToken.replace(/[^0-9]/g, "");
-    if (cleaned.length === 20) {
-      return cleaned.match(/.{1,4}/g)?.join(" - ") || rawToken;
-    }
     return rawToken;
   };
 
   const token = data?.metadata?.token;
   const units = data?.metadata?.units;
   const isPending = data?.state === "PAYMENT_PENDING" || data?.state === "VENDING_PENDING" || data?.state === "CREATED";
-  const isFailed = data?.state === "PAYMENT_FAILED" || data?.state === "VENDING_FAILED";
+  const isRefundPending = data?.state === "VENDING_FAILED_REFUND_PENDING" || (data?.state === "VENDING_FAILED" && data?.failure_reason?.includes("[REFUND_PENDING]"));
+  const isFailed = (data?.state === "PAYMENT_FAILED" || data?.state === "VENDING_FAILED" || data?.state === "VENDING_FAILED_REFUND_PENDING") && !isRefundPending;
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-80px)] pt-24 pb-12 bg-muted/30">
@@ -266,6 +264,25 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
           </div>
         )}
 
+        {/* Refund Pending Banner (Hidden when printing) */}
+        {isRefundPending && (
+          <div className="w-full max-w-2xl mb-6 p-4 rounded-2xl bg-orange-500/10 border border-orange-500/30 flex items-center justify-between print:hidden">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center">
+                <AlertCircle className="w-4 h-4 text-orange-500" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-orange-600 dark:text-orange-400">
+                  Payment Received - Re-vend / Refund Pending
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Your M-Pesa payment was received, but utility token vending encountered a temporary provider delay. Our team has been notified for immediate resolution or refund.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Printable Receipt Card */}
         <div className="w-full max-w-2xl bg-card border border-border/50 shadow-xl rounded-3xl overflow-hidden print:shadow-none print:border-none print:rounded-none">
           
@@ -275,6 +292,8 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
               <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
                 data?.state === "SUCCESS"
                   ? "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20"
+                  : isRefundPending
+                  ? "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20"
                   : isPending
                   ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 animate-pulse"
                   : "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20"
@@ -283,6 +302,11 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
                   <>
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     COMPLETED
+                  </>
+                ) : isRefundPending ? (
+                  <>
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    REFUND PENDING
                   </>
                 ) : isPending ? (
                   <>
@@ -328,13 +352,13 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
 
               <div className="bg-background/90 border-2 border-amber-500/40 rounded-2xl p-5 sm:p-6 text-center my-3 shadow-inner">
                 <p className="text-xs text-muted-foreground uppercase tracking-widest font-mono mb-1">
-                  20-Digit Recharge Code
+                  Recharge Token Code
                 </p>
                 <p className="text-2xl sm:text-4xl font-mono font-black text-foreground tracking-wider py-1.5 selection:bg-amber-500 selection:text-black">
                   {formatTokenDisplay(token)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-2 font-medium">
-                  Key in these 20 digits on your meter keypad (CIU) and press <strong>Enter / Blue Button</strong>.
+                  Key in these digits on your meter keypad (CIU) and press <strong>Enter / Blue Button</strong>.
                 </p>
               </div>
 

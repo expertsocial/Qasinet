@@ -76,10 +76,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const initiatorPhone = process.env.KYANDA_INITIATOR_PHONE || '0722647928';
+    const isElectricity = serviceSlug.includes('kplc') || serviceSlug.includes('electricity') || serviceType === 'electricity';
 
-    let vendingResult: { merchant_reference: string };
+    let vendingResult: { merchant_reference: string; [key: string]: any };
 
-    if (serviceType === 'airtime' || serviceType === 'data') {
+    if (isElectricity) {
+      const { ElectricityServiceHandler } = await import('@/lib/services/electricity');
+      const electricityHandler = new ElectricityServiceHandler(kyandaProvider);
+      const meterType = serviceSlug.includes('postpaid') ? 'postpaid' : 'prepaid';
+      vendingResult = await electricityHandler.vendElectricity({
+        amount: tx.amount,
+        meterNumber: tx.destination,
+        type: meterType,
+        initiatorPhone
+      });
+    } else if (serviceType === 'airtime' || serviceType === 'data') {
       vendingResult = await kyandaProvider.buyAirtime(
         tx.amount,
         tx.destination,

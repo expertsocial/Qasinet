@@ -15,6 +15,8 @@ export async function POST(req: Request) {
   try {
     const payload = await req.json();
 
+    console.log('[Kyanda IPN Webhook] Received IPN callback:', JSON.stringify(payload, null, 2));
+
     const { transactionRef, merchant_reference, reference, Status, status, status_code, message, signature } = payload;
     const providerReference = transactionRef || merchant_reference || reference;
     const finalStatus = Status || status || (status_code === '0000' || status_code === '1100' ? 'Success' : 'Failed'); 
@@ -91,15 +93,18 @@ export async function POST(req: Request) {
 
       const reason = isSuccess ? undefined : message || payload.transactiontxt || finalStatus || 'Failed';
 
-      // Extract metadata like tokens, units, receipts if present
+      // Extract metadata like tokens, units, receipts if present (storing raw strings)
       const metadata: any = {};
-      const token = payload.Token || payload.token || payload.details?.Token || payload.details?.token;
+      const token = payload.Token || payload.token || payload.details?.Token || payload.details?.token || payload.details?.token_code;
       const units = payload.Units || payload.units || payload.details?.Units || payload.details?.units;
       const receipt = payload.Receipt || payload.receipt || payload.details?.Receipt || payload.details?.receipt;
 
-      if (token) metadata.token = token;
-      if (units) metadata.units = units;
-      if (receipt) metadata.receipt = receipt;
+      if (token) {
+        metadata.token = String(token);
+        console.log(`[Kyanda IPN Webhook] Raw KPLC token extracted for tx ${tx.id}:`, metadata.token);
+      }
+      if (units) metadata.units = String(units);
+      if (receipt) metadata.receipt = String(receipt);
       if (payload.details) metadata.providerDetails = payload.details;
 
       await orchestrator.finalizeTransaction(
@@ -107,7 +112,8 @@ export async function POST(req: Request) {
         isSuccess, 
         reason, 
         providerReference, 
-        Object.keys(metadata).length > 0 ? metadata : undefined
+        Object.keys(metadata).length > 0 ? metadata : undefined,
+        isSuccess ? undefined : 'VENDING_FAILED_REFUND_PENDING'
       );
     } else {
       // It's already in a terminal state, just acknowledge.

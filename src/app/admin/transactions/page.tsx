@@ -30,7 +30,9 @@ export default async function TransactionsPage({
   const status = typeof resolvedParams.status === 'string' ? resolvedParams.status : '';
   if (status) {
     if (status === 'FAILED') {
-      query.in('status', ['VENDING_FAILED', 'PAYMENT_FAILED', 'TIMEOUT']);
+      query.in('status', ['VENDING_FAILED', 'VENDING_FAILED_REFUND_PENDING', 'PAYMENT_FAILED', 'TIMEOUT']);
+    } else if (status === 'REFUND_PENDING') {
+      query.or('status.eq.VENDING_FAILED_REFUND_PENDING,failure_reason.ilike.%[REFUND_PENDING]%');
     } else {
       query.eq('status', status);
     }
@@ -146,6 +148,7 @@ export default async function TransactionsPage({
             <option value="">All Statuses</option>
             <option value="SUCCESS">Success</option>
             <option value="FAILED">Failed (All)</option>
+            <option value="REFUND_PENDING">Refund / Re-vend Pending</option>
             <option value="VENDING_FAILED">Vending Failed</option>
             <option value="VENDING_PENDING">Vending Pending</option>
             <option value="PAYMENT_PENDING">Payment Pending</option>
@@ -308,6 +311,13 @@ function StatusBadge({ status }: { status: string }) {
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
         <CheckCircle size={12} /> {status}
+      </span>
+    );
+  }
+  if (status === 'VENDING_FAILED_REFUND_PENDING' || status.includes('REFUND_PENDING')) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-500/15 text-orange-400 border border-orange-500/30">
+        <Clock size={12} /> REFUND PENDING
       </span>
     );
   }

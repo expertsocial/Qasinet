@@ -10,6 +10,7 @@ export type TransactionStatus =
   | 'SUCCESS'
   | 'PAYMENT_FAILED'
   | 'VENDING_FAILED'
+  | 'VENDING_FAILED_REFUND_PENDING'
   | 'REVERSED'
   | 'TIMEOUT'
   | 'UNKNOWN';
@@ -37,11 +38,19 @@ export class TransactionOrchestrator {
   }
 
   public async logEvent(transactionId: string, status: TransactionStatus, details?: any) {
-    const { error } = await this.supabase.from('transaction_events').insert({
+    let { error } = await this.supabase.from('transaction_events').insert({
       transaction_id: transactionId,
       status,
       details,
     });
+    if (error && error.code === '22P02' && status === 'VENDING_FAILED_REFUND_PENDING') {
+      const fallback = await this.supabase.from('transaction_events').insert({
+        transaction_id: transactionId,
+        status: 'VENDING_FAILED',
+        details: { ...details, requested_status: 'VENDING_FAILED_REFUND_PENDING' },
+      });
+      error = fallback.error;
+    }
     if (error) {
       console.error(`Failed to log event for TX ${transactionId}:`, error.message);
     }
@@ -213,13 +222,66 @@ export class TransactionOrchestrator {
     await this.logEvent(transactionId, 'VENDING_PENDING', { message: 'Vending authorized by payment success' });
   }
 
+  public async markVendingFailedRefundPending(
+    transactionId: string,
+    reason: string,
+    providerRef?: string,
+    metadata?: any
+  ) {
+    const refundDetails = {
+      refund_required: true,
+      refund_status: 'PENDING_REVIEW',
+      reason,
+      providerRef,
+      ...(metadata || {})
+    };
+
+    console.warn(`[Orchestrator] Marking transaction ${transactionId} as VENDING_FAILED_REFUND_PENDING: ${reason}`);
+
+    // Try setting status to VENDING_FAILED_REFUND_PENDING
+    let { error } = await this.supabase
+      .from('transactions')
+      .update({
+        status: 'VENDING_FAILED_REFUND_PENDING',
+        failure_reason: `[REFUND_PENDING] ${reason}`,
+        ...(providerRef ? { kyanda_reference: providerRef } : {})
+      })
+      .eq('id', transactionId);
+
+    // If enum value does not exist yet on remote db before migration, fallback to VENDING_FAILED with flag
+    if (error && error.code === '22P02') {
+      console.warn('[Orchestrator] Enum VENDING_FAILED_REFUND_PENDING not in DB yet, falling back to VENDING_FAILED with [REFUND_PENDING] prefix.');
+      const fallback = await this.supabase
+        .from('transactions')
+        .update({
+          status: 'VENDING_FAILED',
+          failure_reason: `[REFUND_PENDING] ${reason}`,
+          ...(providerRef ? { kyanda_reference: providerRef } : {})
+        })
+        .eq('id', transactionId);
+      error = fallback.error;
+    }
+
+    if (error) {
+      console.error('Failed to update transaction to refund pending:', error.message);
+      throw new QasiNetError('UNKNOWN', 'Failed to update transaction to refund pending');
+    }
+
+    await this.logEvent(transactionId, 'VENDING_FAILED_REFUND_PENDING', refundDetails);
+  }
+
   public async finalizeTransaction(
     transactionId: string, 
     success: boolean, 
     reason?: string, 
     providerRef?: string,
-    metadata?: any
+    metadata?: any,
+    overrideFailureState?: 'VENDING_FAILED' | 'VENDING_FAILED_REFUND_PENDING'
   ) {
+    if (!success && overrideFailureState === 'VENDING_FAILED_REFUND_PENDING') {
+      return this.markVendingFailedRefundPending(transactionId, reason || 'Vending failed, refund pending', providerRef, metadata);
+    }
+
     const finalState = success ? 'SUCCESS' : 'VENDING_FAILED';
     
     const updatePayload: any = { status: finalState };

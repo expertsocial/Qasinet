@@ -12,15 +12,16 @@ export class ReconciliationService {
   public async reconcilePendingTransactions() {
     console.log('[Reconciliation] Starting run...');
     
-    // Find VENDING_PENDING transactions where next_retry_at is due (or NULL meaning we should retry now if old enough)
-    // We only poll transactions that have been pending for at least 1 minute, to give IPN a chance first.
-    const oneMinAgo = new Date(Date.now() - 60 * 1000).toISOString();
+    // Find VENDING_PENDING transactions where next_retry_at is due (or NULL)
+    // Safety net: Poll transactions that have been in VENDING_PENDING for ~5-10 minutes,
+    // to give the primary IPN callback time to arrive first.
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     
     const { data: pendingTxs, error } = await this.supabase
       .from('transactions')
       .select('id, kyanda_reference, status, created_at, next_retry_at')
       .eq('status', 'VENDING_PENDING')
-      .lte('created_at', oneMinAgo)
+      .lte('created_at', fiveMinAgo)
       .limit(50); // Process in batches
 
     if (error || !pendingTxs) {
@@ -44,11 +45,14 @@ export class ReconciliationService {
       console.log(`[Reconciliation] Checking transaction ${tx.id} (Kyanda Ref: ${tx.kyanda_reference})`);
 
       if (!tx.kyanda_reference) {
-        // If we failed to even get a Kyanda reference, we must mark it failed or investigate manually.
-        // For now, we'll mark it as VENDING_FAILED if it's over 1 hour old.
-        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-        if (new Date(tx.created_at) < oneHourAgo) {
-          await this.orchestrator.finalizeTransaction(tx.id, false, 'No Kyanda reference obtained after 1 hour');
+        // If customer paid via M-Pesa but no Kyanda ref was obtained after 15 minutes,
+        // flag for refund review rather than leaving silently stuck.
+        const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000);
+        if (new Date(tx.created_at) < fifteenMinAgo) {
+          await this.orchestrator.markVendingFailedRefundPending(
+            tx.id,
+            'No Kyanda provider reference obtained after 15 minutes'
+          );
         }
         continue;
       }
@@ -69,22 +73,57 @@ export class ReconciliationService {
           isSuccess = false;
         }
 
+        // Extract any tokens, units, receipts returned by checkTransactionStatus
+        const rawRes: any = response;
+        const rawDetails: any = details;
+        const token = rawRes?.Token || rawRes?.token || rawDetails?.Token || rawDetails?.token || rawDetails?.token_code;
+        const units = rawRes?.Units || rawRes?.units || rawDetails?.Units || rawDetails?.units;
+        const receipt = rawRes?.Receipt || rawRes?.receipt || rawDetails?.Receipt || rawDetails?.receipt;
+
+        const metadata: any = {};
+        if (token) metadata.token = String(token);
+        if (units) metadata.units = String(units);
+        if (receipt) metadata.receipt = String(receipt);
+        if (details) metadata.providerDetails = details;
+
         if (isFinal) {
-          console.log(`[Reconciliation] Transaction ${tx.id} is final: ${isSuccess}`);
-          await this.orchestrator.finalizeTransaction(tx.id, isSuccess, isSuccess ? undefined : `Reconciled as ${kyandaStatus}`);
+          console.log(`[Reconciliation] Transaction ${tx.id} is final: success=${isSuccess}`);
+          if (isSuccess) {
+            await this.orchestrator.finalizeTransaction(
+              tx.id, 
+              true, 
+              undefined, 
+              tx.kyanda_reference,
+              Object.keys(metadata).length > 0 ? metadata : undefined
+            );
+          } else {
+            // Customer paid, but vending definitively failed: transition to VENDING_FAILED_REFUND_PENDING
+            await this.orchestrator.finalizeTransaction(
+              tx.id, 
+              false, 
+              `Reconciled as ${kyandaStatus || 'Failed'}`, 
+              tx.kyanda_reference,
+              Object.keys(metadata).length > 0 ? metadata : undefined,
+              'VENDING_FAILED_REFUND_PENDING'
+            );
+          }
         } else {
           // Still pending. Schedule next retry with exponential backoff.
-          // Formula: Next retry in (current age * 2), capped at 24 hours.
           const ageMs = Date.now() - new Date(tx.created_at).getTime();
           let backoffMs = ageMs; 
           
           if (backoffMs < 5 * 60 * 1000) backoffMs = 5 * 60 * 1000; // Min 5 min backoff
           if (backoffMs > 24 * 60 * 60 * 1000) backoffMs = 24 * 60 * 60 * 1000; // Max 24hr
 
-          // But if it's older than 48 hours, give up and mark as UNKNOWN/FAILED.
+          // But if it's older than 48 hours, give up and transition to refund pending.
           if (ageMs > 48 * 60 * 60 * 1000) {
             console.warn(`[Reconciliation] Transaction ${tx.id} exceeded 48h timeout.`);
-            await this.orchestrator.finalizeTransaction(tx.id, false, 'Reconciliation Timeout (48h)');
+            await this.orchestrator.markVendingFailedRefundPending(
+              tx.id, 
+              'Reconciliation Timeout (48h)',
+              tx.kyanda_reference,
+              Object.keys(metadata).length > 0 ? metadata : undefined
+            );
             continue;
           }
 

@@ -61,8 +61,8 @@ export function TransactionActions({
     }
   };
 
-  const canReconcile = hasKyandaRef && !['SUCCESS', 'VENDING_FAILED', 'REVERSED'].includes(status);
-  const canRevend = hasPaymentRef && ['VENDING_FAILED', 'TIMEOUT', 'UNKNOWN', 'PAYMENT_CONFIRMED'].includes(status);
+  const canReconcile = hasKyandaRef && !['SUCCESS', 'VENDING_FAILED', 'VENDING_FAILED_REFUND_PENDING', 'REVERSED'].includes(status);
+  const canRevend = hasPaymentRef && ['VENDING_FAILED', 'VENDING_FAILED_REFUND_PENDING', 'TIMEOUT', 'UNKNOWN', 'PAYMENT_CONFIRMED'].includes(status);
 
   return (
     <div className="space-y-3">

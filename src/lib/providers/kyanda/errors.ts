@@ -38,7 +38,7 @@ export function mapKyandaError(code: string | number, message?: string, details?
       break;
     case '1107':
       category = 'INSUFFICIENT_FLOAT';
-      defaultMessage = 'Insufficient float balance.';
+      defaultMessage = 'Insufficient float balance. Service temporarily unavailable. Please try again shortly.';
       break;
     case '1108':
       category = 'VALIDATION_ERROR';
@@ -70,7 +70,7 @@ export function mapKyandaError(code: string | number, message?: string, details?
       break;
     case '8001':
       category = 'VALIDATION_ERROR';
-      defaultMessage = 'Invalid account number format.';
+      defaultMessage = 'Invalid meter or account number format. Please check your meter number.';
       break;
     case '8002':
     case '9001':
@@ -78,8 +78,8 @@ export function mapKyandaError(code: string | number, message?: string, details?
       defaultMessage = 'Invalid phone number format.';
       break;
     case '8003':
-      category = 'VALIDATION_ERROR';
-      defaultMessage = 'Invalid Telco.';
+      category = 'PROVIDER_ERROR';
+      defaultMessage = 'Invalid Telco: Channel code configuration may be incorrect.';
       break;
     case '8004':
     case '9003':
