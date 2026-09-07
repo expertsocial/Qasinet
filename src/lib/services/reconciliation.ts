@@ -74,13 +74,13 @@ export class ReconciliationService {
         }
 
         // Extract any tokens, units, receipts returned by checkTransactionStatus
-        const rawRes: any = response;
-        const rawDetails: any = details;
-        const token = rawRes?.Token || rawRes?.token || rawDetails?.Token || rawDetails?.token || rawDetails?.token_code;
-        const units = rawRes?.Units || rawRes?.units || rawDetails?.Units || rawDetails?.units;
-        const receipt = rawRes?.Receipt || rawRes?.receipt || rawDetails?.Receipt || rawDetails?.receipt;
+        const rawRes = response as unknown as Record<string, unknown>;
+        const rawDetails = details as unknown as Record<string, unknown>;
+        const token = (rawRes?.Token || rawRes?.token || rawDetails?.Token || rawDetails?.token || rawDetails?.token_code) as string | undefined;
+        const units = (rawRes?.Units || rawRes?.units || rawDetails?.Units || rawDetails?.units) as string | number | undefined;
+        const receipt = (rawRes?.Receipt || rawRes?.receipt || rawDetails?.Receipt || rawDetails?.receipt) as string | undefined;
 
-        const metadata: any = {};
+        const metadata: Record<string, unknown> = {};
         if (token) metadata.token = String(token);
         if (units) metadata.units = String(units);
         if (receipt) metadata.receipt = String(receipt);
@@ -136,8 +136,9 @@ export class ReconciliationService {
             
           console.log(`[Reconciliation] Transaction ${tx.id} still pending. Scheduled retry at ${nextRetryAt}`);
         }
-      } catch (err: any) {
-        console.error(`[Reconciliation] Error checking Kyanda status for ${tx.id}:`, err.message);
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`[Reconciliation] Error checking Kyanda status for ${tx.id}:`, errorMsg);
         // We do not fail the transaction immediately on a network/API error from Kyanda.
         // We will retry next time.
       }

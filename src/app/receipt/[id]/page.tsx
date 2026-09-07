@@ -197,6 +197,15 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
   const isRefundPending = data?.state === "VENDING_FAILED_REFUND_PENDING" || (data?.state === "VENDING_FAILED" && data?.failure_reason?.includes("[REFUND_PENDING]"));
   const isFailed = (data?.state === "PAYMENT_FAILED" || data?.state === "VENDING_FAILED" || data?.state === "VENDING_FAILED_REFUND_PENDING") && !isRefundPending;
 
+  if (loading && !data) {
+    return (
+      <div className="flex flex-col min-h-[calc(100vh-80px)] pt-32 pb-12 items-center justify-center">
+        <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
+        <p className="text-sm text-muted-foreground font-medium">Loading transaction receipt...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col min-h-[calc(100vh-80px)] pt-24 pb-12 bg-muted/30">
       <div className="container mx-auto px-4 flex flex-col items-center">
