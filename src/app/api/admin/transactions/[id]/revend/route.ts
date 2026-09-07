@@ -77,17 +77,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const initiatorPhone = process.env.KYANDA_INITIATOR_PHONE || '0722647928';
     const isElectricity = serviceSlug.includes('kplc') || serviceSlug.includes('electricity') || serviceType === 'electricity';
+    const isTv = serviceSlug.includes('tv') || serviceSlug.includes('dstv') || serviceSlug.includes('gotv') || serviceSlug.includes('zuku') || serviceSlug.includes('startimes') || serviceType === 'tv';
 
     let vendingResult: { merchant_reference: string; [key: string]: any };
 
     if (isElectricity) {
-      const { ElectricityServiceHandler } = await import('@/lib/services/electricity');
-      const electricityHandler = new ElectricityServiceHandler(kyandaProvider);
+      const { PayBillServiceHandler } = await import('@/lib/services/paybill');
+      const paybillHandler = new PayBillServiceHandler(kyandaProvider);
       const meterType = serviceSlug.includes('postpaid') ? 'postpaid' : 'prepaid';
-      vendingResult = await electricityHandler.vendElectricity({
+      vendingResult = await paybillHandler.vendElectricity({
         amount: tx.amount,
         meterNumber: tx.destination,
         type: meterType,
+        initiatorPhone
+      });
+    } else if (isTv) {
+      const { PayBillServiceHandler } = await import('@/lib/services/paybill');
+      const paybillHandler = new PayBillServiceHandler(kyandaProvider);
+      vendingResult = await paybillHandler.vendTvSubscription({
+        amount: tx.amount,
+        decoderNumber: tx.destination,
+        provider: telco,
         initiatorPhone
       });
     } else if (serviceType === 'airtime' || serviceType === 'data') {

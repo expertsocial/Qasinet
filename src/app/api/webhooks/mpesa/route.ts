@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { TransactionOrchestrator } from '@/lib/services/orchestrator';
 import { KyandaProvider } from '@/lib/providers/kyanda/provider';
-import { ElectricityServiceHandler } from '@/lib/services/electricity';
+import { PayBillServiceHandler } from '@/lib/services/paybill';
 
 // Map service slugs to Kyanda Telco IDs for non-electricity services
 function getKyandaTelco(slug: string): string {
@@ -103,17 +103,28 @@ export async function POST(req: NextRequest) {
       
       const initiatorPhone = process.env.KYANDA_INITIATOR_PHONE || '0722647928';
       const isElectricity = serviceSlug.includes('kplc') || serviceSlug.includes('electricity') || serviceType === 'electricity';
+      const isTv = serviceSlug.includes('tv') || serviceSlug.includes('dstv') || serviceSlug.includes('gotv') || serviceSlug.includes('zuku') || serviceSlug.includes('startimes') || serviceType === 'tv';
 
       let vendingResult: { merchant_reference: string; [key: string]: any };
 
       if (isElectricity) {
         console.log(`[M-PESA Webhook] Dispatching electricity vending for tx ${tx.id}`);
-        const electricityHandler = new ElectricityServiceHandler(kyandaProvider);
+        const paybillHandler = new PayBillServiceHandler(kyandaProvider);
         const meterType = serviceSlug.includes('postpaid') ? 'postpaid' : 'prepaid';
-        vendingResult = await electricityHandler.vendElectricity({
+        vendingResult = await paybillHandler.vendElectricity({
           amount: tx.amount,
           meterNumber: tx.destination,
           type: meterType,
+          initiatorPhone
+        });
+      } else if (isTv) {
+        const tvProvider = getKyandaTelco(serviceSlug);
+        console.log(`[M-PESA Webhook] Dispatching TV subscription vending for tx ${tx.id}, Provider: ${tvProvider}`);
+        const paybillHandler = new PayBillServiceHandler(kyandaProvider);
+        vendingResult = await paybillHandler.vendTvSubscription({
+          amount: tx.amount,
+          decoderNumber: tx.destination,
+          provider: tvProvider,
           initiatorPhone
         });
       } else if (serviceType === 'airtime' || serviceType === 'data') {

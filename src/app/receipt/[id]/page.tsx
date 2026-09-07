@@ -16,7 +16,8 @@ import {
   Loader2, 
   RefreshCw, 
   ExternalLink, 
-  X 
+  X,
+  Tv
 } from "lucide-react";
 import Link from "next/link";
 import toast from "react-hot-toast";
@@ -196,6 +197,19 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
   const isPending = data?.state === "PAYMENT_PENDING" || data?.state === "VENDING_PENDING" || data?.state === "CREATED";
   const isRefundPending = data?.state === "VENDING_FAILED_REFUND_PENDING" || (data?.state === "VENDING_FAILED" && data?.failure_reason?.includes("[REFUND_PENDING]"));
   const isFailed = (data?.state === "PAYMENT_FAILED" || data?.state === "VENDING_FAILED" || data?.state === "VENDING_FAILED_REFUND_PENDING") && !isRefundPending;
+  const isSuccess = data?.state === "SUCCESS";
+  const isTv = 
+    data?.service?.type === "tv" || 
+    Boolean(data?.service?.slug?.includes("tv")) || 
+    Boolean(data?.service?.slug?.includes("dstv")) || 
+    Boolean(data?.service?.slug?.includes("gotv")) || 
+    Boolean(data?.service?.slug?.includes("zuku")) || 
+    Boolean(data?.service?.slug?.includes("startimes")) ||
+    Boolean(data?.service?.name?.toLowerCase().includes("tv")) ||
+    Boolean(data?.service?.name?.toLowerCase().includes("dstv")) ||
+    Boolean(data?.service?.name?.toLowerCase().includes("gotv")) ||
+    Boolean(data?.service?.name?.toLowerCase().includes("zuku")) ||
+    Boolean(data?.service?.name?.toLowerCase().includes("startimes"));
 
   if (loading && !data) {
     return (
@@ -382,6 +396,22 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
                   {copied ? "Token Copied to Clipboard!" : "Copy Token Code"}
                 </Button>
               </div>
+            </div>
+          )}
+
+          {/* TV SUBSCRIPTION RENEWAL BANNER */}
+          {isTv && isSuccess && (
+            <div className="p-6 sm:p-8 bg-gradient-to-b from-blue-500/15 to-blue-500/5 border-b border-blue-500/30">
+              <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400 font-bold text-sm tracking-wide mb-1">
+                <Tv className="w-5 h-5" />
+                <span>SUBSCRIPTION RENEWED</span>
+              </div>
+              <p className="text-base text-foreground font-bold">
+                Your {data?.service?.name || "TV"} subscription has been renewed.
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Smartcard / Decoder: <span className="font-mono font-semibold text-foreground">{data?.destination}</span>. Your channels should be active within a few minutes.
+              </p>
             </div>
           )}
 

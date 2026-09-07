@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { ProviderSelector, ProviderOption } from "@/components/services/ProviderSelector";
 import { AccountNumberInput } from "@/components/services/AccountNumberInput";
+import { AmountSelector } from "@/components/services/AmountSelector";
 import { PhoneInput } from "@/components/services/PhoneInput";
 import { UnifiedCheckout } from "@/components/checkout/UnifiedCheckout";
 import { OrderPayload } from "@/lib/payment";
@@ -58,11 +59,6 @@ export default function TvPage() {
         setCustomerName(data.customerName);
         if (data.balance > 0) {
           setAmount(data.balance);
-        } else if (amount === 0) {
-          // Standard package default if no balance returned
-          if (provider === "dstv") setAmount(1050);
-          else if (provider === "gotv") setAmount(650);
-          else setAmount(500);
         }
         return { customerName: data.customerName, balance: data.balance };
       }
@@ -80,7 +76,7 @@ export default function TvPage() {
 
   const orderPayload: OrderPayload = {
     serviceId: provider || "tv",
-    serviceName: "TV Subscription",
+    serviceName: `${selectedProviderData?.name || "TV"} Subscription`,
     provider: selectedProviderData?.name || provider || "",
     destination: accountNumber,
     amount: amount,
@@ -88,6 +84,22 @@ export default function TvPage() {
     paymentPhone: phone,
     metadata: {
       accountName: customerName,
+      providerId: provider,
+    }
+  };
+
+  const getPresets = () => {
+    switch (provider) {
+      case "dstv":
+        return [1050, 1600, 2500, 3700, 6500];
+      case "gotv":
+        return [450, 650, 1050, 1400, 1900];
+      case "zuku":
+        return [1000, 1500, 2500, 3500, 4800];
+      case "startimes":
+        return [350, 600, 1000, 1500, 2000];
+      default:
+        return [500, 1000, 1500, 2500, 3500];
     }
   };
 
@@ -143,8 +155,12 @@ export default function TvPage() {
                 selectedProviderId={provider} 
                 onSelect={(id) => {
                   setProvider(id);
-                  setCustomerName(null); // reset verification
-                  setAmount(0);
+                  setCustomerName(null);
+                  if (id === "dstv") setAmount(1050);
+                  else if (id === "gotv") setAmount(650);
+                  else if (id === "zuku") setAmount(1500);
+                  else if (id === "startimes") setAmount(600);
+                  else setAmount(500);
                   setTimeout(handleNext, 300);
                 }} 
               />
@@ -157,15 +173,15 @@ export default function TvPage() {
           </div>
         )}
 
-        {/* Step 2: Account */}
+        {/* Step 2: Account & Amount */}
         {step === 2 && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="bg-card border border-border/50 rounded-3xl p-6 md:p-8 shadow-sm">
-              <h2 className="text-xl font-semibold mb-2">Account Details</h2>
-              <p className="text-sm text-muted-foreground mb-6">Enter your {selectedProviderData?.name} smartcard or account number.</p>
+              <h2 className="text-xl font-semibold mb-2">Account &amp; Amount</h2>
+              <p className="text-sm text-muted-foreground mb-6">Enter your {selectedProviderData?.name} smartcard or decoder number.</p>
               
               <AccountNumberInput
-                label="Smartcard / Account Number"
+                label="Smartcard / Decoder Number"
                 placeholder="e.g. 1029384756"
                 value={accountNumber}
                 onChange={(val) => {
@@ -176,12 +192,14 @@ export default function TvPage() {
                 verifiedCustomer={customerName}
               />
               
-              {customerName && (
-                <div className="mt-6 pt-6 border-t border-border/50">
-                  <p className="text-sm text-muted-foreground mb-2">Amount Due</p>
-                  <p className="text-3xl font-bold">KES {amount}</p>
-                </div>
-              )}
+              <div className="mt-8 pt-8 border-t border-border/50">
+                <AmountSelector
+                  value={amount}
+                  onChange={setAmount}
+                  minAmount={50}
+                  presets={getPresets()}
+                />
+              </div>
             </div>
             <div className="flex flex-col-reverse sm:flex-row justify-between gap-4">
               <Button onClick={handleBack} variant="outline" size="lg">
@@ -189,7 +207,7 @@ export default function TvPage() {
               </Button>
               <Button 
                 onClick={handleNext} 
-                disabled={!customerName} 
+                disabled={!accountNumber.trim() || amount < 50} 
                 size="lg"
               >
                 Continue <ArrowRight className="w-4 h-4 ml-2" />
