@@ -5,10 +5,10 @@ import { KyandaSignatureEngine } from '../src/lib/providers/kyanda/signature';
 import { KyandaProvider } from '../src/lib/providers/kyanda/provider';
 import { ElectricityServiceHandler } from '../src/lib/services/electricity';
 import { mapKyandaError } from '../src/lib/providers/kyanda/errors';
-import { QasiNetError } from '../src/lib/errors';
 
 describe('Electricity & PayBill Integration Suite', () => {
   const originalEnv = { ...process.env };
+  let mockFetch: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -19,7 +19,8 @@ describe('Electricity & PayBill Integration Suite', () => {
       KYANDA_MERCHANT_ID: 'test-merchant',
       KYANDA_SECURITY_KEY: 'test-security-key',
     };
-    global.fetch = vi.fn();
+    mockFetch = vi.fn();
+    global.fetch = mockFetch as unknown as typeof fetch;
   });
 
   afterEach(() => {
@@ -94,19 +95,20 @@ describe('Electricity & PayBill Integration Suite', () => {
   describe('KyandaProvider.payBill Payload Construction', () => {
     it('sends "account" field in payload by default', async () => {
       delete process.env.KYANDA_PAYBILL_ACCOUNT_FIELD;
-      (global.fetch as any).mockResolvedValue({
+      mockFetch.mockResolvedValue({
         ok: true,
         json: async () => ({ status_code: '0000', merchant_reference: 'KY-BILL-001' }),
-      });
+      } as Response);
 
       const provider = new KyandaProvider();
       const result = await provider.payBill(100, '14123456789', 'KPLC_PREPAID', '0722647928');
 
       expect(result.merchant_reference).toBe('KY-BILL-001');
 
-      const fetchCall = (global.fetch as any).mock.calls[0];
+      const fetchCall = mockFetch.mock.calls[0];
       expect(fetchCall[0]).toContain('/billing/v1/bill/create');
-      const body = JSON.parse(fetchCall[1].body);
+      const init = fetchCall[1] as RequestInit;
+      const body = JSON.parse(init.body as string) as Record<string, unknown>;
 
       expect(body.account).toBe('14123456789');
       expect(body.phone).toBeUndefined();
@@ -119,16 +121,17 @@ describe('Electricity & PayBill Integration Suite', () => {
 
     it('sends "phone" field in payload when KYANDA_PAYBILL_ACCOUNT_FIELD is "phone"', async () => {
       process.env.KYANDA_PAYBILL_ACCOUNT_FIELD = 'phone';
-      (global.fetch as any).mockResolvedValue({
+      mockFetch.mockResolvedValue({
         ok: true,
         json: async () => ({ status_code: '0000', merchant_reference: 'KY-BILL-002' }),
-      });
+      } as Response);
 
       const provider = new KyandaProvider();
       await provider.payBill(250, '14123456789', 'KPLC_PREPAID', '0722647928');
 
-      const fetchCall = (global.fetch as any).mock.calls[0];
-      const body = JSON.parse(fetchCall[1].body);
+      const fetchCall = mockFetch.mock.calls[0];
+      const init = fetchCall[1] as RequestInit;
+      const body = JSON.parse(init.body as string) as Record<string, unknown>;
 
       expect(body.phone).toBe('14123456789');
       expect(body.account).toBeUndefined();
@@ -170,7 +173,7 @@ describe('Electricity & PayBill Integration Suite', () => {
 
     it('successfully vends electricity and extracts token, units, and receipt', async () => {
       process.env.KYANDA_KPLC_PREPAID_CHANNEL = 'KPLC_PREPAID';
-      (global.fetch as any).mockResolvedValue({
+      mockFetch.mockResolvedValue({
         ok: true,
         json: async () => ({
           status_code: '0000',
@@ -179,7 +182,7 @@ describe('Electricity & PayBill Integration Suite', () => {
           Units: '32.5 kWh',
           Receipt: 'REC-123456',
         }),
-      });
+      } as Response);
 
       const provider = new KyandaProvider();
       const handler = new ElectricityServiceHandler(provider);

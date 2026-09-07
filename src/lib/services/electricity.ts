@@ -7,7 +7,7 @@ export interface VendingResult {
   token?: string;
   units?: string;
   receipt?: string;
-  rawResponse?: any;
+  rawResponse?: Record<string, unknown> | unknown;
 }
 
 export class ElectricityServiceHandler {
@@ -57,10 +57,11 @@ export class ElectricityServiceHandler {
       params.initiatorPhone
     );
 
-    const raw: any = response;
-    const token = raw?.Token || raw?.token || raw?.details?.Token || raw?.details?.token;
-    const units = raw?.Units || raw?.units || raw?.details?.Units || raw?.details?.units;
-    const receipt = raw?.Receipt || raw?.receipt || raw?.details?.Receipt || raw?.details?.receipt;
+    const raw = response as Record<string, unknown>;
+    const details = (raw?.details && typeof raw.details === 'object' ? raw.details : {}) as Record<string, unknown>;
+    const token = (raw?.Token || raw?.token || details?.Token || details?.token) as string | undefined;
+    const units = (raw?.Units || raw?.units || details?.Units || details?.units) as string | undefined;
+    const receipt = (raw?.Receipt || raw?.receipt || details?.Receipt || details?.receipt) as string | undefined;
 
     return {
       merchant_reference: response.merchant_reference,
