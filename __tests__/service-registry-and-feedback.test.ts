@@ -39,7 +39,7 @@ describe('Service Availability System & Registry', () => {
     expect(serviceIds).toContain('zuku');
   });
 
-  it('defaults active services to enabled and Faiba bundles to coming_soon without env override', () => {
+  it('defaults active services including Faiba bundles to enabled without env override', () => {
     delete process.env.NEXT_PUBLIC_SERVICE_STATUS_FAIBA_DATA;
     delete process.env.NEXT_PUBLIC_ENABLE_FAIBA_BUNDLES;
     delete process.env.NEXT_PUBLIC_SERVICE_STATUS_SAFARICOM_AIRTIME;
@@ -48,7 +48,7 @@ describe('Service Availability System & Registry', () => {
     expect(getServiceStatus('kplc-prepaid')).toBe('enabled');
     expect(getServiceStatus('nairobi-water')).toBe('enabled');
     expect(getServiceStatus('dstv')).toBe('enabled');
-    expect(getServiceStatus('faiba-data')).toBe('coming_soon');
+    expect(getServiceStatus('faiba-data')).toBe('enabled');
   });
 
   it('supports unified environment override for any service (enabled, coming_soon, hidden)', () => {

@@ -1,7 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { QasiNetError } from '../errors';
 import { sendReceiptEmail } from './email';
-import { IS_FAIBA_BUNDLES_ENABLED } from '../constants/faiba-bundles';
+import { isServiceEnabled } from './registry';
 
 export type TransactionStatus =
   | 'CREATED'
@@ -87,7 +87,7 @@ export class TransactionOrchestrator {
       if (service.slug !== 'faiba-data') {
         throw new QasiNetError('SERVICE_UNAVAILABLE', 'Data bundles are currently only supported for Faiba 4G. Other networks are coming soon.');
       }
-      if (!IS_FAIBA_BUNDLES_ENABLED) {
+      if (!isServiceEnabled('faiba-data')) {
         throw new QasiNetError('SERVICE_UNAVAILABLE', 'Faiba data bundle vending is temporarily paused pending upstream provider activation. Please purchase Faiba Airtime instead.');
       }
     }

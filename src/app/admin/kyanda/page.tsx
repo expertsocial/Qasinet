@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { floatService } from '@/lib/services/float';
+import { isServiceEnabled } from '@/lib/services/registry';
 import { Activity, Wallet, ShieldCheck, AlertTriangle, RefreshCw, Zap, Info, Cpu } from 'lucide-react';
 import Link from 'next/link';
 
@@ -203,7 +204,7 @@ export default async function KyandaOperationsPage() {
           </div>
           <div className="flex items-center gap-2">
             <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-              Feature Flag: {process.env.NEXT_PUBLIC_ENABLE_FAIBA_BUNDLES === 'true' ? 'ACTIVE' : 'PAUSED'}
+              Faiba Bundles: {isServiceEnabled('faiba-data') ? 'ACTIVE' : 'PAUSED'}
             </span>
           </div>
         </div>

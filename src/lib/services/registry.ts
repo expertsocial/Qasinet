@@ -142,7 +142,7 @@ export const MASTER_SERVICES: ServiceDefinition[] = [
     tagline: 'High-Speed 4G+ Data',
     description: 'Daily, weekly, and monthly 4G data packages for Faiba lines. Non-Faiba bundles coming soon.',
     href: '/services/data',
-    defaultStatus: 'coming_soon',
+    defaultStatus: 'enabled',
     comingSoonMessage: 'Faiba data bundles are undergoing scheduled maintenance. Please purchase pinless Faiba Airtime instead.',
   },
 

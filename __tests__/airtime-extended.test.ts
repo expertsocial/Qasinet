@@ -436,9 +436,9 @@ describe('Extended Airtime & Faiba Bundles Test Suite', () => {
   });
 
   describe('Data Bundle Network Honesty & Feature Flag Gating', () => {
-    it('defaults IS_FAIBA_BUNDLES_ENABLED to false when environment flag is unset or false', async () => {
-      const { IS_FAIBA_BUNDLES_ENABLED } = await import('../src/lib/constants/faiba-bundles');
-      expect(IS_FAIBA_BUNDLES_ENABLED).toBe(false);
+    it('defaults IS_FAIBA_BUNDLES_ENABLED to true when activated', async () => {
+      const { isServiceEnabled } = await import('../src/lib/services/registry');
+      expect(isServiceEnabled('faiba-data')).toBe(true);
     });
 
     it('rejects data bundle initiation for non-Faiba services with SERVICE_UNAVAILABLE', async () => {
@@ -450,7 +450,8 @@ describe('Extended Airtime & Faiba Bundles Test Suite', () => {
           eq: vi.fn(() => chain),
           in: vi.fn(() => chain),
           gte: vi.fn().mockResolvedValue({ data: [], error: null }),
-          single: vi.fn().mockResolvedValue(terminalResult)
+          single: vi.fn().mockResolvedValue(terminalResult),
+          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null })
         };
         return chain;
       };
@@ -487,7 +488,8 @@ describe('Extended Airtime & Faiba Bundles Test Suite', () => {
           eq: vi.fn(() => chain),
           in: vi.fn(() => chain),
           gte: vi.fn().mockResolvedValue({ data: [], error: null }),
-          single: vi.fn().mockResolvedValue(terminalResult)
+          single: vi.fn().mockResolvedValue(terminalResult),
+          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null })
         };
         return chain;
       };
@@ -504,16 +506,21 @@ describe('Extended Airtime & Faiba Bundles Test Suite', () => {
         })
       };
 
-      const orchestrator = new TransactionOrchestrator(mockSupabase);
-      await expect(
-        orchestrator.initiateTransaction({
-          serviceSlug: 'faiba-data',
-          productId: 'DAILY_500MB',
-          destination: '0747123456',
-          amount: 20,
-          idempotencyKey: 'test-idem-2'
-        })
-      ).rejects.toThrow(/Faiba data bundle vending is temporarily paused/);
+      process.env.NEXT_PUBLIC_SERVICE_STATUS_FAIBA_DATA = 'coming_soon';
+      try {
+        const orchestrator = new TransactionOrchestrator(mockSupabase);
+        await expect(
+          orchestrator.initiateTransaction({
+            serviceSlug: 'faiba-data',
+            productId: 'DAILY_500MB',
+            destination: '0747123456',
+            amount: 20,
+            idempotencyKey: 'test-idem-2'
+          })
+        ).rejects.toThrow(/Faiba data bundle vending is temporarily paused/);
+      } finally {
+        delete process.env.NEXT_PUBLIC_SERVICE_STATUS_FAIBA_DATA;
+      }
     });
   });
 });
