@@ -11,10 +11,12 @@ import { isUtilityService } from "@/lib/account-validation";
 import { rememberServiceDestination } from "@/lib/beneficiaries";
 import { toast } from "react-hot-toast";
 
+export type ReceiptData = Record<string, unknown>;
+
 interface UnifiedCheckoutProps {
   order: OrderPayload;
   onEditDetails: () => void;
-  onSuccess?: (receiptData: any) => void;
+  onSuccess?: (receiptData: ReceiptData) => void;
 }
 
 type CheckoutPhase = "REVIEW" | "PAYMENT";
@@ -38,28 +40,25 @@ export function UnifiedCheckout({ order, onEditDetails, onSuccess }: UnifiedChec
         return order.destination;
       }
     }
-    return order.paymentPhone || "";
-  });
-
-  // Load last used M-Pesa phone on mount only if paymentPhone is empty or invalid
-  useEffect(() => {
-    try {
-      if (!paymentPhone || !isValidKenyanPhone(paymentPhone)) {
+    // 3. Fall back to last used M-Pesa phone in localStorage if available
+    if (typeof window !== "undefined") {
+      try {
         const lastMpesa = localStorage.getItem("qasinet_last_mpesa_phone");
         if (lastMpesa && isValidKenyanPhone(lastMpesa)) {
-          setPaymentPhone(lastMpesa);
+          return lastMpesa;
         }
+      } catch {
+        // Ignore
       }
-    } catch (e) {
-      // Ignore
     }
-  }, [order.destination, paymentPhone]);
+    return order.paymentPhone || "";
+  });
 
   // Payment refs
   const [reference, setReference] = useState<string>("");
   const [providerRef, setProviderRef] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
-  const [receiptData, setReceiptData] = useState<any>(null);
+  const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   
   const pollingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const attemptRef = useRef<number>(0);
@@ -82,7 +81,7 @@ export function UnifiedCheckout({ order, onEditDetails, onSuccess }: UnifiedChec
       const list: string[] = existing ? JSON.parse(existing) : [];
       const updated = [cleanPaymentPhone, ...list.filter(p => p !== cleanPaymentPhone)].slice(0, 4);
       localStorage.setItem("qasinet_recent_mpesa_phones", JSON.stringify(updated));
-    } catch (e) {
+    } catch {
       // Ignore
     }
 
@@ -107,10 +106,11 @@ export function UnifiedCheckout({ order, onEditDetails, onSuccess }: UnifiedChec
       // Start polling status
       attemptRef.current = 0;
       pollStatus(initResult.reference);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setPhase("PAYMENT");
       setPaymentState("FAILED");
-      setErrorMessage(err.message || "Could not initiate payment. Please try again later.");
+      const message = err instanceof Error ? err.message : "Could not initiate payment. Please try again later.";
+      setErrorMessage(message);
     }
   };
 
@@ -142,7 +142,7 @@ export function UnifiedCheckout({ order, onEditDetails, onSuccess }: UnifiedChec
              onSuccess({});
            }
         }
-      } catch (err) {
+      } catch {
         // Continue polling if network error, unless we hit max
         if (attemptRef.current < 30) {
           pollStatus(ref);
