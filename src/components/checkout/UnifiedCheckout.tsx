@@ -5,6 +5,7 @@ import { OrderPayload, PaymentService, PaymentState } from "@/lib/payment";
 import { CheckoutReview } from "./CheckoutReview";
 import { TransactionStatus } from "@/components/services/TransactionStatus";
 import { Button } from "@/components/ui/Button";
+import { detectCarrier } from "@/lib/carrier";
 import { isValidKenyanPhone, normalizeKenyanPhone } from "@/lib/validation";
 import { isUtilityService } from "@/lib/account-validation";
 import { rememberServiceDestination } from "@/lib/beneficiaries";
