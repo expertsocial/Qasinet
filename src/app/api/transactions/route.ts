@@ -5,6 +5,7 @@ import { initTransactionSchema } from '@/lib/validations/transaction';
 import { TransactionOrchestrator } from '@/lib/services/orchestrator';
 import { QasiNetError } from '@/lib/errors';
 import { MpesaDarajaProvider } from '@/lib/providers/mpesa/provider';
+import { floatService } from '@/lib/services/float';
 
 // Basic in-memory rate limiter (Warning: Resets on serverless cold starts)
 const rateLimitMap = new Map<string, { count: number, resetAt: number }>();
@@ -58,7 +59,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Guest phone is required for unauthenticated users' }, { status: 400 });
     }
 
-    // 2. Delegate to Orchestrator using Service Role Client for secure DB writes bypassing RLS
+    // 2. Merchant Float Pre-Check (Circuit Breaker)
+    const floatCheck = await floatService.checkSufficientFloat(amount);
+    if (!floatCheck.sufficient) {
+      console.warn(
+        `[${correlationId}] Pre-check BLOCKED for ${serviceSlug}: ${floatCheck.reason}`
+      );
+      return NextResponse.json({
+        success: false,
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Service temporarily unavailable. Please try again shortly.',
+          details: process.env.NODE_ENV === 'development' ? floatCheck.reason : undefined,
+        }
+      }, { status: 503 });
+    }
+
+    if (floatCheck.fallbackUsed) {
+      console.warn(`[${correlationId}] Proceeding with transaction via float fallback: ${floatCheck.reason}`);
+    }
+
+    // 3. Delegate to Orchestrator using Service Role Client for secure DB writes bypassing RLS
     const supabaseService = createSupabaseClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!

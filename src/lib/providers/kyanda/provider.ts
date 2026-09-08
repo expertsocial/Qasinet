@@ -1,6 +1,18 @@
 import { KyandaClient } from './client';
 import { KyandaSignatureEngine } from './signature';
 import { getPaybillAccountField } from './paybill-config';
+import { QasiNetError } from '../../errors';
+
+export const SUPPORTED_AIRTIME_TELCOS = [
+  'SAFARICOM',
+  'AIRTEL',
+  'TELKOM',
+  'EQUITEL',
+  'FAIBA',
+  'FAIBA_B'
+] as const;
+
+export type AirtimeTelco = typeof SUPPORTED_AIRTIME_TELCOS[number];
 
 export interface KyandaAccountBalanceResponse {
   Account_Bal: number;
@@ -89,7 +101,27 @@ export class KyandaProvider {
     const formattedPhone = formatKyandaPhone(phone);
     const formattedInitiator = formatKyandaPhone(initiatorPhone);
     const formattedTelco = (telco || 'SAFARICOM').toUpperCase();
-    const cleanAmount = String(Math.round(Number(amount)));
+    const numAmount = Number(amount);
+    if (isNaN(numAmount) || !Number.isInteger(numAmount) || numAmount <= 2 || numAmount >= 7000) {
+      throw new QasiNetError(
+        'VALIDATION_ERROR',
+        `Airtime amount must be a whole number greater than 2 and less than 7000. Received: ${amount}`
+      );
+    }
+    const cleanAmount = String(numAmount);
+
+    // Fail-fast validation against supported airtime channels
+    if (!SUPPORTED_AIRTIME_TELCOS.includes(formattedTelco as AirtimeTelco)) {
+      throw new QasiNetError(
+        'VALIDATION_ERROR',
+        `Unsupported airtime telco: ${telco}. Supported telcos: ${SUPPORTED_AIRTIME_TELCOS.join(', ')}`
+      );
+    }
+
+    // FAIBA_B (Faiba data bundles) strictly requires a published productCode
+    if (formattedTelco === 'FAIBA_B' && !productCode) {
+      throw new QasiNetError('VALIDATION_ERROR', 'productCode is required for FAIBA_B Faiba bundles');
+    }
 
     const signature = KyandaSignatureEngine.generateAirtimeSignature(
       cleanAmount,
@@ -102,7 +134,7 @@ export class KyandaProvider {
 
     // Kyanda /billing/v1/airtime/create strictly accepts:
     // MerchantID, phone, amount, telco, initiatorPhone, signature.
-    // callbackURL is an excess parameter and MUST NOT be sent here (it is registered via API/dashboard).
+    // callbackURL is an excess parameter and MUST NOT be sent here.
     const payload: any = {
       MerchantID: merchantId,
       phone: formattedPhone,
@@ -114,7 +146,7 @@ export class KyandaProvider {
 
     // productCode is strictly ONLY accepted for FAIBA_B (Faiba bundle packages).
     // Sending productCode for SAFARICOM, AIRTEL, TELKOM, EQUITEL causes HTTP 400 Missing/Excess parameters.
-    if (formattedTelco === 'FAIBA_B' && productCode) {
+    if (formattedTelco === 'FAIBA_B') {
       payload.productCode = productCode;
     }
 

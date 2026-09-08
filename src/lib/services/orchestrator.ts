@@ -1,6 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { QasiNetError } from '../errors';
 import { sendReceiptEmail } from './email';
+import { IS_FAIBA_BUNDLES_ENABLED } from '../constants/faiba-bundles';
 
 export type TransactionStatus =
   | 'CREATED'
@@ -72,7 +73,7 @@ export class TransactionOrchestrator {
 
     const { data: service, error: serviceError } = await this.supabase
       .from('services')
-      .select('id, provider_id, pricing(*)')
+      .select('id, type, slug, provider_id, pricing(*)')
       .eq('slug', params.serviceSlug)
       .eq('is_active', true)
       .single();
@@ -81,22 +82,46 @@ export class TransactionOrchestrator {
       throw new QasiNetError('VALIDATION_ERROR', 'Service not found or inactive');
     }
 
+    // Enforce Faiba-only data bundle support and check feature flag
+    if (service.type === 'data') {
+      if (service.slug !== 'faiba-data') {
+        throw new QasiNetError('SERVICE_UNAVAILABLE', 'Data bundles are currently only supported for Faiba 4G. Other networks are coming soon.');
+      }
+      if (!IS_FAIBA_BUNDLES_ENABLED) {
+        throw new QasiNetError('SERVICE_UNAVAILABLE', 'Faiba data bundle vending is temporarily paused pending upstream provider activation. Please purchase Faiba Airtime instead.');
+      }
+    }
+
     let pricingRule = service.pricing?.[0];
 
-    if (params.productId) {
-      const { data: product, error: productError } = await this.supabase
-        .from('products')
-        .select('id, pricing(*)')
-        .eq('id', params.productId)
-        .eq('service_id', service.id)
-        .eq('is_active', true)
-        .single();
+    let productRecord: any = null;
+    let resolvedProductId: string | null = null;
 
-      if (productError || !product) {
-        throw new QasiNetError('VALIDATION_ERROR', 'Product not found or inactive');
+    if (params.productId) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params.productId);
+      let query = this.supabase
+        .from('products')
+        .select('id, provider_product_id, pricing(*)')
+        .eq('service_id', service.id)
+        .eq('is_active', true);
+
+      if (isUuid) {
+        query = query.eq('id', params.productId);
+      } else {
+        query = query.eq('provider_product_id', params.productId);
       }
-      if (product.pricing && product.pricing.length > 0) {
-        pricingRule = product.pricing[0];
+
+      const { data: product, error: productError } = await query.maybeSingle();
+
+      if (!productError && product) {
+        productRecord = product;
+        resolvedProductId = product.id;
+        if (product.pricing && product.pricing.length > 0) {
+          const activePricing = product.pricing.find((p: any) => p.is_active !== false);
+          if (activePricing) pricingRule = activePricing;
+        }
+      } else if (isUuid) {
+        throw new QasiNetError('VALIDATION_ERROR', 'Product not found or inactive');
       }
     }
 
@@ -128,7 +153,7 @@ export class TransactionOrchestrator {
         user_id: params.userId || null,
         guest_phone: params.userId ? null : params.guestPhone,
         service_id: service.id,
-        product_id: params.productId || null,
+        product_id: resolvedProductId,
         provider_id: service.provider_id,
         destination: params.destination,
         amount: params.amount,
@@ -145,7 +170,10 @@ export class TransactionOrchestrator {
       throw new QasiNetError('UNKNOWN', 'Failed to initialize transaction');
     }
 
-    await this.logEvent(transaction.id, 'CREATED', { message: 'Transaction initialized' });
+    await this.logEvent(transaction.id, 'CREATED', { 
+      message: 'Transaction initialized',
+      ...(params.productId ? { productCode: productRecord?.provider_product_id || params.productId } : {})
+    });
 
     return transaction;
   }

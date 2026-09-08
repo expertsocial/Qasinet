@@ -58,3 +58,6 @@ export function getPhoneValidationError(phone: string): string | null {
   
   return null;
 }
+
+export * from './account-validation';
+

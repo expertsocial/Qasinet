@@ -137,7 +137,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
 
-    return NextResponse.json(result, { status: 200 });
+    return NextResponse.json(result, { 
+      status: 200,
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+      },
+    });
   } catch (error) {
     console.error('Track API POST Error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
@@ -160,7 +165,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
 
-    return NextResponse.json(result, { status: 200 });
+    return NextResponse.json(result, { 
+      status: 200,
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+      },
+    });
   } catch (error) {
     console.error('Track API GET Error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

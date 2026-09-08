@@ -1,14 +1,32 @@
 "use client";
 
-import React, { useEffect } from "react";
-import { CheckCircle2, XCircle, Loader2, ArrowRight, Clock, AlertTriangle, Smartphone, ShieldCheck, Sparkles, Share2 } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { 
+  CheckCircle2, 
+  XCircle, 
+  Loader2, 
+  ArrowRight, 
+  Clock, 
+  AlertTriangle, 
+  Smartphone, 
+  ShieldCheck, 
+  Sparkles, 
+  Copy, 
+  Check, 
+  HelpCircle,
+  RefreshCw,
+  MessageCircle,
+  ExternalLink
+} from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/Button";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { PaymentState, OrderPayload } from "@/lib/payment";
 import { TokenResult } from "@/components/services/TokenResult";
+import { getTransactionFeedback } from "@/lib/feedback/transaction-feedback";
 import confetti from "canvas-confetti";
 import { sounds } from "@/lib/sounds";
+import toast from "react-hot-toast";
 
 interface TransactionStatusProps {
   status: PaymentState;
@@ -29,8 +47,18 @@ export function TransactionStatus({
   receiptData,
   onRetry,
 }: TransactionStatusProps) {
+  const [copiedRef, setCopiedRef] = useState(false);
 
-  // Trigger celebration & sounds on status transitions
+  // Evaluate human-toned customer feedback
+  const feedback = getTransactionFeedback({
+    status,
+    message,
+    order,
+    reference,
+    providerRef,
+  });
+
+  // Trigger audio cues & celebration
   useEffect(() => {
     if (status === "SUCCESS") {
       sounds.playSuccessChime();
@@ -52,33 +80,32 @@ export function TransactionStatus({
       } catch (e) {
         // ignore
       }
-    } else if (status === "FAILED" || status === "TIMEOUT") {
+    } else if (status === "FAILED" || status === "TIMEOUT" || status === "REFUND_PENDING") {
       sounds.playWarningChime();
     }
   }, [status, order.destination]);
 
-  // PENDING & PROCESSING - High-Tech Animated Radar
+  const handleCopyReference = (refToCopy: string) => {
+    navigator.clipboard.writeText(refToCopy);
+    setCopiedRef(true);
+    toast.success("Order reference copied!");
+    setTimeout(() => setCopiedRef(false), 2500);
+  };
+
+  // =========================================================================
+  // 1. PENDING & PROCESSING - High-Tech Animated Radar
+  // =========================================================================
   if (status === "PENDING" || status === "CONFIRMED" || status === "PROCESSING") {
-    let title = "Waiting for M-Pesa PIN...";
-    let description = `A prompt of KES ${(order.amount + (order.fees || 0)).toLocaleString()} has been sent to your phone ${order.destination}.`;
     let step = 1;
-    
-    if (status === "CONFIRMED") {
-      title = "Payment Received!";
-      description = "M-Pesa payment confirmed. Preparing to dispatch your service.";
-      step = 2;
-    } else if (status === "PROCESSING") {
-      title = "Vending Utility...";
-      description = "Dispatched to provider network. Generating your receipt and token.";
-      step = 3;
-    }
+    if (status === "CONFIRMED") step = 2;
+    if (status === "PROCESSING") step = 3;
 
     return (
       <div className="flex flex-col items-center justify-center p-8 sm:p-10 text-center space-y-6 bg-card border border-border/50 rounded-3xl shadow-xl animate-in fade-in zoom-in-95 duration-500 relative overflow-hidden">
-        {/* Glowing Radar Background */}
+        {/* Ambient Glow */}
         <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent pointer-events-none" />
 
-        {/* Radar Animation Ring */}
+        {/* Radar Ring */}
         <div className="relative flex items-center justify-center w-28 h-28 my-2">
           <div className="absolute inset-0 rounded-full border-2 border-primary/20 animate-ping opacity-75" />
           <div className="absolute inset-2 rounded-full border-2 border-primary/40 animate-pulse" />
@@ -95,9 +122,9 @@ export function TransactionStatus({
         </div>
 
         <div className="space-y-2 max-w-md mx-auto">
-          <h2 className="text-2xl font-bold tracking-tight text-foreground">{title}</h2>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">{feedback.headline}</h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            {description}
+            {feedback.context}
           </p>
           <div className="pt-2 flex items-center justify-center gap-2 text-xs font-semibold text-emerald-400">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
@@ -114,9 +141,11 @@ export function TransactionStatus({
     );
   }
 
-  // SUCCESS
+  // =========================================================================
+  // 2. SUCCESS - Paid & Delivered
+  // =========================================================================
   if (status === "SUCCESS") {
-    // Special case for Electricity prepaid tokens
+    // Special case for KPLC Prepaid electricity tokens
     if (order.serviceId === "electricity" && receiptData?.token) {
       return (
         <div className="space-y-6">
@@ -132,7 +161,7 @@ export function TransactionStatus({
               Buy Another Utility
             </Link>
             <Link href={`/receipt/${reference || ""}`} className={cn(buttonVariants(), "flex-1")}>
-              View Receipt
+              View Full Receipt
             </Link>
           </div>
         </div>
@@ -153,17 +182,21 @@ export function TransactionStatus({
         <div className="space-y-2 w-full">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold mb-1">
             <Sparkles className="w-3.5 h-3.5" />
-            Vended Successfully
+            {feedback.badgeLabel}
           </div>
-          <h2 className="text-2xl font-black text-foreground tracking-tight">Transaction Complete!</h2>
-          <p className="text-muted-foreground text-sm max-w-md mx-auto">
-            Your {order.serviceName} of KES {order.amount.toLocaleString()} was credited to {order.destination}.
+          <h2 className="text-2xl sm:text-3xl font-black text-foreground tracking-tight">
+            {feedback.headline}
+          </h2>
+          <p className="text-muted-foreground text-sm max-w-md mx-auto leading-relaxed">
+            {feedback.context}
           </p>
           
           <div className="bg-secondary/30 rounded-2xl p-4 md:p-6 text-left space-y-3.5 max-w-md mx-auto border border-border/50 mt-4">
             <div className="flex justify-between items-center pb-2.5 border-b border-border/50">
                <span className="text-muted-foreground text-xs font-medium">Status</span>
-               <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider">Paid &amp; Delivered</span>
+               <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider">
+                 {feedback.badgeLabel}
+               </span>
             </div>
             <div className="flex justify-between items-center text-xs">
                <span className="text-muted-foreground font-medium">Service</span>
@@ -198,75 +231,207 @@ export function TransactionStatus({
     );
   }
 
-  // FAILED
-  if (status === "FAILED") {
+  // =========================================================================
+  // 3. REFUND PENDING (Payment Received, Vending Failed)
+  // Reassuring, clear, customer-first tone.
+  // =========================================================================
+  if (feedback.isRefundPending || status === "REFUND_PENDING") {
     return (
-      <div className="flex flex-col items-center justify-center p-8 text-center space-y-6 bg-card border border-border/50 rounded-3xl shadow-xl animate-in fade-in zoom-in-95 duration-500">
+      <div className="flex flex-col items-center justify-center p-6 md:p-8 text-center space-y-6 bg-card border border-amber-500/30 rounded-3xl shadow-xl animate-in fade-in zoom-in-95 duration-500 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-36 h-36 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+
         <div className="relative">
-          <div className="absolute inset-0 bg-destructive/20 blur-xl rounded-full" />
-          <XCircle className="w-16 h-16 text-destructive relative z-10" />
+          <div className="absolute inset-0 bg-amber-500/20 blur-xl rounded-full" />
+          <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 relative z-10 shadow-lg shadow-amber-500/20">
+            <ShieldCheck className="w-9 h-9 text-amber-400" />
+          </div>
         </div>
-        <div className="space-y-2">
-          <h2 className="text-2xl font-bold text-foreground">Transaction Incomplete</h2>
-          <p className="text-muted-foreground max-w-md mx-auto text-sm">
-            We couldn't finalize your transaction.
+
+        <div className="space-y-3 w-full max-w-lg mx-auto">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-bold">
+            <Clock className="w-3.5 h-3.5" />
+            {feedback.badgeLabel}
+          </div>
+
+          <h2 className="text-2xl sm:text-3xl font-black text-foreground tracking-tight">
+            {feedback.headline}
+          </h2>
+
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            {feedback.context}
           </p>
-          {message && (
-            <div className="mt-4 p-4 bg-destructive/10 text-destructive text-xs font-medium rounded-2xl border border-destructive/20 max-w-md mx-auto text-left">
-              <span className="font-bold block mb-1">Error Details:</span>
-              {message}
+
+          {/* Structured Refund Assurance Card */}
+          <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 sm:p-5 text-left space-y-3 mt-4">
+            <div className="flex items-center justify-between pb-2.5 border-b border-amber-500/20 text-xs">
+              <span className="text-muted-foreground font-medium">M-Pesa Payment Received</span>
+              <span className="font-bold text-emerald-400 font-mono">KES {order.amount.toLocaleString()}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground font-medium">Vending Status</span>
+              <span className="text-amber-400 font-semibold">Not Completed (Provider Pause)</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground font-medium">Refund Route</span>
+              <span className="text-foreground font-medium">Direct to paying M-Pesa account</span>
+            </div>
+
+            <p className="text-xs text-neutral-300 pt-1 leading-relaxed">
+              {feedback.nextStepGuidance}
+            </p>
+          </div>
+
+          {/* Prominent Quote Reference Box */}
+          {reference && (
+            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-secondary/60 border border-border/80">
+              <div className="text-left">
+                <span className="text-[11px] font-medium text-muted-foreground block">
+                  Support Reference Code
+                </span>
+                <span className="font-mono font-bold text-sm text-foreground">
+                  {reference}
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleCopyReference(reference)}
+                className="gap-1.5 text-xs h-8"
+              >
+                {copiedRef ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedRef ? "Copied" : "Copy Code"}</span>
+              </Button>
             </div>
           )}
-          {reference && (
-            <p className="text-xs mt-4 text-muted-foreground">
-              Reference: <span className="font-mono font-medium text-foreground">{reference}</span>
-            </p>
-          )}
         </div>
-        <div className="pt-4 flex flex-col sm:flex-row gap-3 w-full justify-center max-w-xs mx-auto">
-          {onRetry && (
-            <Button onClick={onRetry} className="gap-2 flex-1">
-              Try Again <ArrowRight className="w-4 h-4" />
-            </Button>
-          )}
-          <Link href="/support" className={cn(buttonVariants({ variant: "outline" }), "flex-1")}>
-            Support
+
+        {/* Action Buttons */}
+        <div className="pt-2 flex flex-col sm:flex-row gap-3 w-full justify-center max-w-sm mx-auto">
+          <Link 
+            href={`/track?ref=${encodeURIComponent(reference || "")}&phone=${encodeURIComponent(order.paymentPhone || order.destination || "")}`}
+            className={cn(buttonVariants({ variant: "outline" }), "flex-1 text-xs font-bold")}
+          >
+            Track Status Live
+          </Link>
+          <Link 
+            href={`/support?ref=${encodeURIComponent(reference || "")}`}
+            className={cn(buttonVariants(), "flex-1 text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white")}
+          >
+            Contact Support
           </Link>
         </div>
       </div>
     );
   }
-  
-  // TIMEOUT / UNKNOWN
-  return (
-    <div className="flex flex-col items-center justify-center p-8 text-center space-y-6 bg-card border border-border/50 rounded-3xl shadow-xl animate-in fade-in zoom-in-95 duration-500">
-      <div className="relative">
-        <div className="absolute inset-0 bg-yellow-500/20 blur-xl rounded-full" />
-        {status === "TIMEOUT" ? (
-          <Clock className="w-16 h-16 text-yellow-500 relative z-10" />
-        ) : (
-          <AlertTriangle className="w-16 h-16 text-yellow-500 relative z-10" />
-        )}
-      </div>
-      <div className="space-y-2">
-        <h2 className="text-2xl font-bold text-foreground">
-          {status === "TIMEOUT" ? "Request Timed Out" : "Awaiting Confirmation"}
-        </h2>
-        <p className="text-muted-foreground text-sm max-w-md mx-auto">
-          The network response is taking longer than expected. If your M-Pesa account was charged, the service will be delivered automatically.
-        </p>
-        {reference && (
-          <p className="text-xs mt-3 text-muted-foreground">
-            Reference: <span className="font-mono font-medium text-foreground">{reference}</span>
+
+  // =========================================================================
+  // 4. TIMEOUT / DELAYED
+  // =========================================================================
+  if (status === "TIMEOUT") {
+    return (
+      <div className="flex flex-col items-center justify-center p-6 md:p-8 text-center space-y-6 bg-card border border-yellow-500/30 rounded-3xl shadow-xl animate-in fade-in zoom-in-95 duration-500">
+        <div className="relative">
+          <div className="absolute inset-0 bg-yellow-500/20 blur-xl rounded-full" />
+          <div className="w-16 h-16 rounded-full bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-center text-yellow-400 relative z-10 shadow-lg shadow-yellow-500/20">
+            <Clock className="w-8 h-8 text-yellow-400" />
+          </div>
+        </div>
+
+        <div className="space-y-3 max-w-md mx-auto">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-xs font-bold">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            {feedback.badgeLabel}
+          </div>
+
+          <h2 className="text-2xl font-bold text-foreground">
+            {feedback.headline}
+          </h2>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            {feedback.context}
           </p>
+
+          <div className="bg-secondary/40 rounded-2xl p-4 text-xs text-muted-foreground leading-relaxed border border-border/60 text-left">
+            {feedback.nextStepGuidance}
+          </div>
+
+          {reference && (
+            <div className="flex items-center justify-between p-3 rounded-xl bg-secondary/30 border border-border/50 text-xs">
+              <span className="text-muted-foreground font-medium">Order Reference:</span>
+              <span className="font-mono font-bold text-foreground">{reference}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="pt-2 flex flex-col sm:flex-row gap-3 w-full justify-center max-w-xs mx-auto">
+          <Link 
+            href={`/track?ref=${encodeURIComponent(reference || "")}&phone=${encodeURIComponent(order.paymentPhone || order.destination || "")}`}
+            className={cn(buttonVariants({ variant: "outline" }), "flex-1 text-xs font-bold")}
+          >
+            Track Status
+          </Link>
+          <Link href="/support" className={cn(buttonVariants(), "flex-1 text-xs font-bold")}>
+            Help Center
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // 5. FAILED / VALIDATION / SERVICE UNAVAILABLE
+  // Clear headline + single human sentence + actionable next step
+  // =========================================================================
+  return (
+    <div className="flex flex-col items-center justify-center p-6 md:p-8 text-center space-y-6 bg-card border border-border/80 rounded-3xl shadow-xl animate-in fade-in zoom-in-95 duration-500 relative overflow-hidden">
+      <div className="relative">
+        <div className="absolute inset-0 bg-destructive/15 blur-xl rounded-full" />
+        <div className="w-16 h-16 rounded-full bg-destructive/10 border border-destructive/20 flex items-center justify-center text-destructive relative z-10">
+          <XCircle className="w-9 h-9" />
+        </div>
+      </div>
+
+      <div className="space-y-3 max-w-md mx-auto">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-destructive/10 text-destructive border border-destructive/20 text-xs font-bold">
+          {feedback.badgeLabel}
+        </div>
+
+        <h2 className="text-2xl font-bold text-foreground tracking-tight">
+          {feedback.headline}
+        </h2>
+        
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          {feedback.context}
+        </p>
+
+        {/* Actionable Next Step Card (No Dev Error Label!) */}
+        <div className="bg-secondary/40 rounded-2xl p-4 text-xs text-neutral-300 leading-relaxed border border-border/60 text-left space-y-1">
+          <span className="font-semibold text-foreground block text-[11px] uppercase tracking-wider">
+            Suggested Next Step
+          </span>
+          <p>{feedback.nextStepGuidance}</p>
+        </div>
+
+        {reference && (
+          <div className="flex items-center justify-between p-3 rounded-xl bg-secondary/30 border border-border/50 text-xs">
+            <span className="text-muted-foreground font-medium">Reference Code:</span>
+            <span className="font-mono font-bold text-foreground">{reference}</span>
+          </div>
         )}
       </div>
-      <div className="pt-4 flex flex-col sm:flex-row gap-3 w-full justify-center max-w-xs mx-auto">
-        <Link href={`/track?ref=${reference || ""}`} className={cn(buttonVariants({ variant: "outline" }), "flex-1")}>
-          Track Status
-        </Link>
-        <Link href="/support" className={cn(buttonVariants(), "flex-1")}>
-          Help
+
+      <div className="pt-2 flex flex-col sm:flex-row gap-3 w-full justify-center max-w-xs mx-auto">
+        {feedback.showRetry && onRetry && (
+          <Button onClick={onRetry} className="gap-2 flex-1 text-xs font-bold">
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>{feedback.retryLabel || "Try Again"}</span>
+          </Button>
+        )}
+        <Link 
+          href={reference ? `/support?ref=${encodeURIComponent(reference)}` : "/support"} 
+          className={cn(buttonVariants({ variant: "outline" }), "flex-1 text-xs font-bold")}
+        >
+          Customer Care
         </Link>
       </div>
     </div>

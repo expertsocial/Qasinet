@@ -13,13 +13,15 @@ import {
   Sparkles,
   Search,
   Layers,
-  ArrowUpRight
+  ArrowUpRight,
+  Droplets
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { HowItWorks } from "@/components/home/HowItWorks";
 import { FaqSection } from "@/components/home/FaqSection";
 import { cn } from "@/lib/utils";
+import { getServiceCategories } from "@/lib/services/registry";
 
 export default function Home() {
   return (
@@ -56,47 +58,36 @@ export default function Home() {
               Buy airtime, subscribe to data bundles, purchase KPLC electricity tokens, and settle TV & water bills seamlessly with automated M-Pesa checkout.
             </p>
             
-            {/* Quick Service Action Launcher */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-2xl mx-auto pt-4">
-              <Link 
-                href="/services/airtime" 
-                className="flex items-center justify-center gap-2 p-3.5 rounded-2xl bg-card border border-border/80 hover:border-primary/50 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all text-sm font-bold text-foreground group"
-              >
-                <div className="w-7 h-7 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center group-hover:bg-emerald-500 group-hover:text-white transition-colors">
-                  <Smartphone className="w-4 h-4" />
-                </div>
-                <span>Airtime</span>
-              </Link>
+            {/* Quick Service Action Launcher - Registry Driven */}
+            <div className="flex flex-wrap items-center justify-center gap-2.5 max-w-2xl mx-auto pt-4">
+              {getServiceCategories().map((cat) => {
+                const IconComponent = 
+                  cat.iconName === 'Smartphone' ? Smartphone :
+                  cat.iconName === 'Wifi' ? Wifi :
+                  cat.iconName === 'Zap' ? Zap :
+                  cat.iconName === 'Tv' ? Tv :
+                  Droplets;
 
-              <Link 
-                href="/services/data" 
-                className="flex items-center justify-center gap-2 p-3.5 rounded-2xl bg-card border border-border/80 hover:border-primary/50 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all text-sm font-bold text-foreground group"
-              >
-                <div className="w-7 h-7 rounded-xl bg-sky-500/10 text-sky-500 flex items-center justify-center group-hover:bg-sky-500 group-hover:text-white transition-colors">
-                  <Wifi className="w-4 h-4" />
-                </div>
-                <span>Data</span>
-              </Link>
+                const colorClasses = 
+                  cat.id === 'airtime' ? 'bg-emerald-500/10 text-emerald-500 group-hover:bg-emerald-500' :
+                  cat.id === 'data' ? 'bg-sky-500/10 text-sky-500 group-hover:bg-sky-500' :
+                  cat.id === 'electricity' ? 'bg-amber-500/10 text-amber-500 group-hover:bg-amber-500' :
+                  cat.id === 'tv' ? 'bg-indigo-500/10 text-indigo-500 group-hover:bg-indigo-500' :
+                  'bg-blue-500/10 text-blue-500 group-hover:bg-blue-500';
 
-              <Link 
-                href="/services/electricity" 
-                className="flex items-center justify-center gap-2 p-3.5 rounded-2xl bg-card border border-border/80 hover:border-primary/50 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all text-sm font-bold text-foreground group"
-              >
-                <div className="w-7 h-7 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center group-hover:bg-amber-500 group-hover:text-white transition-colors">
-                  <Zap className="w-4 h-4" />
-                </div>
-                <span>Tokens</span>
-              </Link>
-
-              <Link 
-                href="/services/tv" 
-                className="flex items-center justify-center gap-2 p-3.5 rounded-2xl bg-card border border-border/80 hover:border-primary/50 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all text-sm font-bold text-foreground group"
-              >
-                <div className="w-7 h-7 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-colors">
-                  <Tv className="w-4 h-4" />
-                </div>
-                <span>TV Pay</span>
-              </Link>
+                return (
+                  <Link 
+                    key={cat.id}
+                    href={cat.href} 
+                    className="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-card border border-border/80 hover:border-primary/50 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all text-sm font-bold text-foreground group min-w-[130px]"
+                  >
+                    <div className={cn("w-7 h-7 rounded-xl flex items-center justify-center group-hover:text-white transition-colors", colorClasses)}>
+                      <IconComponent className="w-4 h-4" />
+                    </div>
+                    <span>{cat.name.split(' ')[0]}</span>
+                  </Link>
+                );
+              })}
             </div>
 
             {/* Track Button */}

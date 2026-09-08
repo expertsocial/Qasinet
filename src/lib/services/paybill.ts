@@ -141,4 +141,28 @@ export class PayBillServiceHandler {
       accountLabel: 'Meter number',
     });
   }
+
+  /**
+   * Dispatches Water bill payment via Kyanda Pay Bill API (telco: NAIROBI_WTR).
+   */
+  public async vendWater(params: {
+    amount: number | string;
+    accountNumber: string;
+    initiatorPhone: string;
+  }): Promise<PayBillResult> {
+    const cleanAccount = (params.accountNumber || '').trim();
+    if (!cleanAccount) {
+      throw new QasiNetError('VALIDATION_ERROR', 'Water account number is required.');
+    }
+
+    return this.payBill({
+      amount: params.amount,
+      accountNumber: cleanAccount,
+      telco: 'NAIROBI_WTR',
+      initiatorPhone: params.initiatorPhone,
+      accountLabel: 'Water account number',
+    });
+  }
 }
+
+export const SUPPORTED_WATER_PROVIDERS = ['NAIROBI_WTR'] as const;

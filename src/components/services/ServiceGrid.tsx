@@ -3,167 +3,25 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ServiceCard } from "./ServiceCard";
-import { Smartphone, Wifi, Zap, Tv, Droplets, LayoutGrid } from "lucide-react";
+import { 
+  Smartphone, 
+  Wifi, 
+  Zap, 
+  Tv, 
+  Droplets, 
+  LayoutGrid, 
+  Layers,
+  Sparkles
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+import { 
+  getVisibleServices, 
+  getGroupedServices, 
+  ServiceDefinition, 
+  ServiceStatus 
+} from "@/lib/services/registry";
 
-interface ServiceItem {
-  id: string;
-  title: string;
-  category: "airtime" | "data" | "electricity" | "tv" | "water";
-  categoryLabel: string;
-  logoSrc: string;
-  badge: string;
-  tagline: string;
-}
-
-const services: ServiceItem[] = [
-  {
-    id: "safaricom-airtime",
-    title: "Safaricom Airtime",
-    category: "airtime",
-    categoryLabel: "Airtime",
-    logoSrc: "/logos/safaricom-logo.png",
-    badge: "0% Fee",
-    tagline: "Instant Top-Up",
-  },
-  {
-    id: "airtel-airtime",
-    title: "Airtel Airtime",
-    category: "airtime",
-    categoryLabel: "Airtime",
-    logoSrc: "/logos/airtel-logo.jpg",
-    badge: "0% Fee",
-    tagline: "Instant Top-Up",
-  },
-  {
-    id: "telkom-airtime",
-    title: "Telkom Airtime",
-    category: "airtime",
-    categoryLabel: "Airtime",
-    logoSrc: "/logos/telcom-logo.png",
-    badge: "0% Fee",
-    tagline: "Instant Top-Up",
-  },
-  {
-    id: "faiba-airtime",
-    title: "Faiba 4G Airtime",
-    category: "airtime",
-    categoryLabel: "Airtime",
-    logoSrc: "/logos/faiba-logo.png",
-    badge: "0% Fee",
-    tagline: "Instant Top-Up",
-  },
-  {
-    id: "equitel-airtime",
-    title: "Equitel Airtime",
-    category: "airtime",
-    categoryLabel: "Airtime",
-    logoSrc: "/logos/equitel-logo.jpg",
-    badge: "0% Fee",
-    tagline: "Instant Top-Up",
-  },
-  {
-    id: "safaricom-data",
-    title: "Safaricom Data Bundles",
-    category: "data",
-    categoryLabel: "Data",
-    logoSrc: "/logos/safaricom-logo.png",
-    badge: "Daily/Weekly",
-    tagline: "High-Speed 4G/5G",
-  },
-  {
-    id: "airtel-data",
-    title: "Airtel Bamba Bundles",
-    category: "data",
-    categoryLabel: "Data",
-    logoSrc: "/logos/airtel-logo.jpg",
-    badge: "Hot Deals",
-    tagline: "Non-Stop Internet",
-  },
-  {
-    id: "faiba-data",
-    title: "Faiba Data Packages",
-    category: "data",
-    categoryLabel: "Data",
-    logoSrc: "/logos/faiba-logo.png",
-    badge: "Best Rates",
-    tagline: "Superfast 4G+",
-  },
-  {
-    id: "telkom-data",
-    title: "Telkom Data Bundles",
-    category: "data",
-    categoryLabel: "Data",
-    logoSrc: "/logos/telcom-logo.png",
-    badge: "Value",
-    tagline: "Freedom Plans",
-  },
-  {
-    id: "kplc-prepaid",
-    title: "KPLC Prepaid Tokens",
-    category: "electricity",
-    categoryLabel: "Electricity",
-    logoSrc: "/logos/kenya-power-logo.jpg",
-    badge: "24/7 Vend",
-    tagline: "Instant Meter Token",
-  },
-  {
-    id: "kplc-postpaid",
-    title: "KPLC Postpaid Bill",
-    category: "electricity",
-    categoryLabel: "Electricity",
-    logoSrc: "/logos/kenya-power-logo.jpg",
-    badge: "Verified",
-    tagline: "Direct Bill Pay",
-  },
-  {
-    id: "dstv",
-    title: "DStv Subscription",
-    category: "tv",
-    categoryLabel: "TV & Media",
-    logoSrc: "/logos/dstv-logo.jpg",
-    badge: "Instant Clear",
-    tagline: "Premium Channels",
-  },
-  {
-    id: "gotv",
-    title: "GOtv Subscription",
-    category: "tv",
-    categoryLabel: "TV & Media",
-    logoSrc: "/logos/gotv-logo.png",
-    badge: "Instant Clear",
-    tagline: "Digital Decoder Pay",
-  },
-  {
-    id: "startimes",
-    title: "StarTimes Decoder",
-    category: "tv",
-    categoryLabel: "TV & Media",
-    logoSrc: "/logos/startimes-logo.jpg",
-    badge: "Instant",
-    tagline: "Smartcard Recharge",
-  },
-  {
-    id: "zuku",
-    title: "Zuku Satellite TV",
-    category: "tv",
-    categoryLabel: "TV & Media",
-    logoSrc: "/logos/zuku-logo.jpg",
-    badge: "Instant",
-    tagline: "Fiber & Decoder",
-  },
-  {
-    id: "nairobi-water",
-    title: "Nairobi Water Utility",
-    category: "water",
-    categoryLabel: "Water",
-    logoSrc: "/logos/water-service-logo.jpg",
-    badge: "Auto Detect",
-    tagline: "Direct Bill Settle",
-  },
-];
-
-const categories = [
+const CATEGORIES = [
   { id: "all", label: "All Services", icon: LayoutGrid },
   { id: "airtime", label: "Airtime", icon: Smartphone },
   { id: "data", label: "Data Bundles", icon: Wifi },
@@ -176,19 +34,23 @@ export function ServiceGrid() {
   const router = useRouter();
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
-  const filteredServices = selectedCategory === "all"
-    ? services
-    : services.filter(s => s.category === selectedCategory);
+  const visibleServices = getVisibleServices();
+  const serviceGroups = getGroupedServices();
 
-  const handleServiceClick = (category: string, serviceId: string) => {
+  const handleServiceClick = (category: string, serviceId: string, status: ServiceStatus) => {
+    if (status === "coming_soon") return; // Handled by card toast
     router.push(`/services/${category}?provider=${serviceId}`);
   };
 
+  const filteredServices = selectedCategory === "all"
+    ? visibleServices
+    : visibleServices.filter((s) => s.category === selectedCategory);
+
   return (
-    <div className="w-full space-y-8">
-      {/* Category Pills */}
+    <div className="w-full space-y-10">
+      {/* Category Pills Filter */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none justify-start sm:justify-center">
-        {categories.map((cat) => {
+        {CATEGORIES.map((cat) => {
           const isSelected = selectedCategory === cat.id;
           const Icon = cat.icon;
           return (
@@ -209,21 +71,86 @@ export function ServiceGrid() {
         })}
       </div>
 
-      {/* Grid of Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-        {filteredServices.map((service, index) => (
-          <ServiceCard
-            key={service.id}
-            title={service.title}
-            category={service.categoryLabel}
-            logoSrc={service.logoSrc}
-            badge={service.badge}
-            tagline={service.tagline}
-            delay={index * 30}
-            onClick={() => handleServiceClick(service.category, service.id)}
-          />
-        ))}
-      </div>
+      {/* Grouped Layout when "All Services" is selected */}
+      {selectedCategory === "all" ? (
+        <div className="space-y-12">
+          {serviceGroups.map((group, groupIdx) => {
+            const GroupIcon = group.iconName === "Smartphone" ? Smartphone : Zap;
+            return (
+              <div key={group.key} className="space-y-5">
+                {/* Section Group Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-border/60">
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "w-8 h-8 rounded-xl flex items-center justify-center text-xs shadow-sm",
+                      group.key === "airtime_data" 
+                        ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+                        : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                    )}>
+                      <GroupIcon className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg sm:text-xl font-extrabold text-foreground tracking-tight">
+                        {group.title}
+                      </h3>
+                      <p className="text-xs text-muted-foreground hidden sm:block">
+                        {group.tagline}
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className="text-[11px] font-semibold text-muted-foreground bg-secondary/60 px-2.5 py-1 rounded-full w-fit">
+                    {group.services.length} services available
+                  </span>
+                </div>
+
+                {/* Grid for this Group */}
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+                  {group.services.map((service, index) => (
+                    <ServiceCard
+                      key={service.id}
+                      title={service.title}
+                      category={service.categoryLabel}
+                      logoSrc={service.logoSrc}
+                      badge={service.badge}
+                      tagline={service.tagline}
+                      status={service.status}
+                      comingSoonMessage={service.comingSoonMessage}
+                      delay={(groupIdx * 4 + index) * 25}
+                      onClick={() => handleServiceClick(service.category, service.id, service.status)}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* Filtered Category Grid */
+        <div className="space-y-4">
+          <div className="flex items-center justify-between pb-2 border-b border-border/40">
+            <span className="text-xs font-semibold text-muted-foreground">
+              Showing {filteredServices.length} {selectedCategory} services
+            </span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+            {filteredServices.map((service, index) => (
+              <ServiceCard
+                key={service.id}
+                title={service.title}
+                category={service.categoryLabel}
+                logoSrc={service.logoSrc}
+                badge={service.badge}
+                tagline={service.tagline}
+                status={service.status}
+                comingSoonMessage={service.comingSoonMessage}
+                delay={index * 25}
+                onClick={() => handleServiceClick(service.category, service.id, service.status)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

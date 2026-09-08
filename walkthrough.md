@@ -138,3 +138,95 @@ We have implemented electricity token (Kenya Power / KPLC) purchases on Qasinet 
 5. **Token Receipt Display**
    - In [page.tsx](file:///c:/Users/HomePC/Desktop/Qasinet/src/app/receipt/%5Bid%5D/page.tsx), displays the raw token string directly from the logged payload without enforcing rigid 4-digit hyphens.
 
+---
+
+## Phase 9: Airtime Extension for Telkom, Equitel, Faiba & Faiba Bundles
+
+Extended the existing airtime purchase pipeline to support **TELKOM**, **EQUITEL**, **FAIBA** (pinless airtime), and **FAIBA_B** (Faiba data bundles), reusing the production Kyanda Airtime API (`POST /billing/v1/airtime/create`).
+
+### Key Changes Implemented
+
+1. **Scoped Product Validation ([faiba-bundles.ts](file:///c:/Users/HomePC/Desktop/Qasinet/src/lib/constants/faiba-bundles.ts), [transaction.ts](file:///c:/Users/HomePC/Desktop/Qasinet/src/lib/validations/transaction.ts))**
+   - Configured `FAIBA_BUNDLE_CODES` and `FAIBA_DATA_BUNDLES`.
+   - Refined `initTransactionSchema` so `productId` accepts a UUID *or* one of the 9 published `FAIBA_BUNDLE_CODES`, avoiding system-wide loosening of validation.
+
+2. **Kyanda Error Text Preservation & No Retries on 4xx ([client.ts](file:///c:/Users/HomePC/Desktop/Qasinet/src/lib/providers/kyanda/client.ts))**
+   - Re-ordered response handling to evaluate `status_code` before `!response.ok`.
+   - Preserves specific Kyanda error messages (distinguishing missing bundle code, invalid bundle code, and invalid channel under shared code `9002`).
+   - Maps immediately to `QasiNetError` with `isQasiNetError = true`, preventing wasteful retries on 4xx errors.
+
+3. **Airtime Channel Whitelist & productCode Gating ([provider.ts](file:///c:/Users/HomePC/Desktop/Qasinet/src/lib/providers/kyanda/provider.ts))**
+   - Exported `SUPPORTED_AIRTIME_TELCOS` (`'SAFARICOM' | 'AIRTEL' | 'TELKOM' | 'EQUITEL' | 'FAIBA' | 'FAIBA_B'`).
+   - Fails fast on unsupported telcos and strictly gates `productCode` so it is sent only for `FAIBA_B`.
+
+4. **UI Updates ([NetworkSelector.tsx](file:///c:/Users/HomePC/Desktop/Qasinet/src/components/services/NetworkSelector.tsx), [airtime/page.tsx](file:///c:/Users/HomePC/Desktop/Qasinet/src/app/services/airtime/page.tsx))**
+   - Added `Faiba Bundles` to network selector with responsive layout.
+   - Corrected carrier logo fallbacks for Equitel (`/logos/equitel-logo.jpg`) and Faiba (`/logos/faiba-logo.png`).
+   - Interactive card selection in Step 3 for Faiba Bundles locking price and allowance.
+
+5. **Testing & Verification**
+   - Added `__tests__/airtime-extended.test.ts` (17 tests covering telco whitelist, gating, error preservation, and schema).
+   - Full test suite: 67/67 tests passing across 5 suites.
+   - Production build: `next build` compiled cleanly with 0 TypeScript errors.
+   - Live gateway verification matrix documented in [airtime_extension_test_report.md](file:///c:/Users/HomePC/Desktop/Qasinet/airtime_extension_test_report.md).
+
+---
+
+## Phase 10: Data Bundles Closeout & Faiba (FAIBA_B) Authorization Guard
+
+Per Kyanda merchant documentation, data bundles exist solely for Faiba (`FAIBA_B`) on the Airtime API (`POST /billing/v1/airtime/create`). Safaricom, Airtel, Telkom, and Equitel have no documented bundle endpoints or product codes in Kyanda.
+
+### Key Changes & Implementations
+
+1. **Strict UI & Catalog Honesty for Non-Faiba Networks**
+   - **Service Catalog & Grid ([ServiceGrid.tsx](file:///c:/Users/HomePC/Desktop/Qasinet/src/components/services/ServiceGrid.tsx), [page.tsx](file:///c:/Users/HomePC/Desktop/Qasinet/src/app/services/page.tsx)):** Removed all placeholder entries for Safaricom, Airtel, and Telkom data bundles. Re-labeled the category card to **"Faiba 4G Data Bundles"** with an explicit "Faiba Only" badge and subtext clarifying other networks are coming soon.
+   - **Dedicated Data Page ([data/page.tsx](file:///c:/Users/HomePC/Desktop/Qasinet/src/app/services/data/page.tsx)):** Scoped exclusively to Faiba. Other networks (Safaricom, Airtel, Telkom, Equitel) are displayed with a disabled state and "Coming Soon" badge. Carrier prefix autodetection alerts users if a non-Faiba number is entered and provides a 1-click redirect to Airtime.
+   - **Data API Route ([route.ts](file:///c:/Users/HomePC/Desktop/Qasinet/src/app/api/services/data/route.ts)):** Restricted database queries strictly to `slug: 'faiba-data'`, deactivating placeholder services in the Supabase catalog.
+   - **Backend Guardrails ([orchestrator.ts](file:///c:/Users/HomePC/Desktop/Qasinet/src/lib/services/orchestrator.ts), [mpesa webhook](file:///c:/Users/HomePC/Desktop/Qasinet/src/app/api/webhooks/mpesa/route.ts), [revend](file:///c:/Users/HomePC/Desktop/Qasinet/src/app/api/admin/transactions/%5Bid%5D/revend/route.ts)):** Hardened transaction initiation and vending against non-Faiba data bundles, throwing `SERVICE_UNAVAILABLE`.
+
+2. **Faiba Bundle Feature Flag & Pause Safeguard**
+   - **Feature Flag ([faiba-bundles.ts](file:///c:/Users/HomePC/Desktop/Qasinet/src/lib/constants/faiba-bundles.ts), [.env.local](file:///c:/Users/HomePC/Desktop/Qasinet/.env.local)):** Added `NEXT_PUBLIC_ENABLE_FAIBA_BUNDLES` defaulting to `false` until Kyanda authorizes the merchant account.
+   - **Customer UX Gating ([data/page.tsx](file:///c:/Users/HomePC/Desktop/Qasinet/src/app/services/data/page.tsx), [airtime/page.tsx](file:///c:/Users/HomePC/Desktop/Qasinet/src/app/services/airtime/page.tsx)):** When paused, displays an amber informational banner explaining Faiba bundle vending is temporarily undergoing scheduled provider onboarding, with a direct 1-click fallback to purchase Faiba pinless airtime. Proceeding to checkout is disabled.
+
+3. **Periodic Authorization Verification Script**
+   - Created [check-faiba-authorization.mjs](file:///c:/Users/HomePC/Desktop/Qasinet/scripts/check-faiba-authorization.mjs) executable via `npm run check:faiba-bundles`.
+   - Sends live verification requests for `DailyData1GB @ 50` to `https://api.kyanda.app/billing/v1/airtime/create`.
+   - Evaluates whether Kyanda returns `1107` (Float check - authorized!) or `9002` (Pending authorization).
+
+4. **Security & API Observation for Kyanda Support**
+   - In live testing, sending an intentionally invalid HMAC signature with `telco: "FAIBA_B"` and `productCode: "DAILY_DATA_225MB"` still yielded `9002` (productCode error) rather than `1104` (signature mismatch).
+   - This indicates Kyanda evaluates `productCode` before cryptographic signature validation.
+
+5. **Test Coverage & Build Verification**
+   - Added unit tests in [airtime-extended.test.ts](file:///c:/Users/HomePC/Desktop/Qasinet/__tests__/airtime-extended.test.ts) testing feature flag defaulting and fail-fast rejection for non-Faiba and paused bundles.
+   - 70/70 tests passing. Next.js production build verified.
+
+---
+
+## Phase 11: Water Bill Payments (NAIROBI_WTR) via Shared Pay Bill Handler
+
+We extended QasiNet's generalized Pay Bill handler (`POST /billing/v1/bill/create`) to support municipal water payments for Nairobi City Water & Sewerage Company (`NAIROBI_WTR`), the sole documented water provider in the Kyanda merchant documentation.
+
+### Key Changes Implemented
+
+1. **Shared Pay Bill Handler Extension ([paybill.ts](file:///c:/Users/HomePC/Desktop/Qasinet/src/lib/services/paybill.ts))**
+   - Added `vendWater(params: { amount, accountNumber, initiatorPhone })` dispatching to `this.payBill` with `telco: 'NAIROBI_WTR'`.
+   - Exported `SUPPORTED_WATER_PROVIDERS = ['NAIROBI_WTR'] as const`.
+
+2. **Webhook & Re-vend Integration ([mpesa/route.ts](file:///c:/Users/HomePC/Desktop/Qasinet/src/app/api/webhooks/mpesa/route.ts), [revend/route.ts](file:///c:/Users/HomePC/Desktop/Qasinet/src/app/api/admin/transactions/%5Bid%5D/revend/route.ts))**
+   - Corrected historical `getKyandaTelco` mapping to return `'NAIROBI_WTR'` (replacing obsolete placeholder `'NAIROBIWATER'`).
+   - Added `isWater` dispatch branch in M-Pesa webhook and Admin re-vend routes.
+   - Any vending failure automatically transitions the transaction to `VENDING_FAILED_REFUND_PENDING`.
+
+3. **Streamlined Customer UI ([water/page.tsx](file:///c:/Users/HomePC/Desktop/Qasinet/src/app/services/water/page.tsx))**
+   - Redesigned into a straightforward account-number + amount form matching Electricity (no redundant provider selector).
+   - Enforces whole-number integer input via `AmountSelector` with presets (`200`, `500`, `1000`, `2000`, `5000`).
+   - Smoothly hands off to `UnifiedCheckout` for M-Pesa payment.
+
+4. **Dedicated Receipt Display ([receipt/[id]/page.tsx](file:///c:/Users/HomePC/Desktop/Qasinet/src/app/receipt/%5Bid%5D/page.tsx))**
+   - Added water bill completion banner: *"Your water bill payment for account <X> was successful"*.
+
+5. **Testing & Gateway Telemetry ([water_payments_test_report.md](file:///c:/Users/HomePC/Desktop/Qasinet/water_payments_test_report.md))**
+   - **Live Gateway:** Verified `NAIROBI_WTR` reached float check (`1107: Insufficient Funds!`) with transaction ID `QASAPI316689`.
+   - **Whole Numbers:** Confirmed Pay Bill accepts decimal strings (unlike Airtime which rejected with `9003`), while QasiNet safely enforces integers.
+   - **Automated Tests:** 73/73 tests passing in Vitest. Next.js production build verified.

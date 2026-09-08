@@ -4,7 +4,7 @@ import React from "react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
-export type Network = "Safaricom" | "Airtel" | "Telkom" | "Equitel" | "Faiba";
+export type Network = "Safaricom" | "Airtel" | "Telkom" | "Equitel" | "Faiba" | "Faiba Bundles";
 
 interface NetworkOption {
   id: Network;
@@ -18,6 +18,7 @@ const networks: NetworkOption[] = [
   { id: "Telkom", name: "Telkom", logoSrc: "/logos/telcom-logo.png" },
   { id: "Equitel", name: "Equitel", logoSrc: "/logos/equitel-logo.jpg" },
   { id: "Faiba", name: "Faiba", logoSrc: "/logos/faiba-logo.png" },
+  { id: "Faiba Bundles", name: "Faiba Bundles", logoSrc: "/logos/faiba-logo.png" },
 ];
 
 interface NetworkSelectorProps {
@@ -28,7 +29,7 @@ interface NetworkSelectorProps {
 
 export function NetworkSelector({ selectedNetwork, onSelect, className }: NetworkSelectorProps) {
   return (
-    <div className={cn("grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3", className)}>
+    <div className={cn("grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3", className)}>
       {networks.map((network) => {
         const isSelected = selectedNetwork === network.id;
         

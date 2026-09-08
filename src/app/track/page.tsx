@@ -19,11 +19,13 @@ import {
   ShieldCheck, 
   Smartphone, 
   FileText,
+  Info,
   X
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
+import { getTransactionFeedback } from "@/lib/feedback/transaction-feedback";
 
 interface TransactionData {
   id: string;
@@ -210,11 +212,23 @@ function TrackTransactionContent() {
   const metadata = result?.metadata;
   const status = tx?.status || "";
 
+  const feedback = tx ? getTransactionFeedback({
+    status: tx.status,
+    message: tx.failure_reason,
+    order: {
+      serviceName: tx.services?.name,
+      destination: tx.destination,
+      amount: tx.amount,
+    },
+    reference: tx.qsn_reference,
+  }) : null;
+
   const isCreated = Boolean(tx);
-  const isPaid = status === "PAYMENT_CONFIRMED" || status === "VENDING_PENDING" || status === "SUCCESS";
+  const isPaid = status === "PAYMENT_CONFIRMED" || status === "VENDING_PENDING" || status === "SUCCESS" || feedback?.isRefundPending;
   const isVending = status === "VENDING_PENDING" || status === "SUCCESS";
   const isDelivered = status === "SUCCESS";
-  const isFailed = status.includes("FAILED");
+  const isRefundPending = Boolean(feedback?.isRefundPending || status === "VENDING_FAILED_REFUND_PENDING");
+  const isFailed = status.includes("FAILED") && !isRefundPending;
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-80px)] pt-20 pb-16">
@@ -323,11 +337,13 @@ function TrackTransactionContent() {
                 <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
                   isDelivered 
                     ? "bg-green-500/10 text-green-500 border-green-500/20" 
+                    : isRefundPending
+                    ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
                     : isFailed 
                     ? "bg-red-500/10 text-red-500 border-red-500/20" 
                     : "bg-blue-500/10 text-blue-500 border-blue-500/20"
                 }`}>
-                  {isDelivered ? "DELIVERED" : isFailed ? "FAILED" : "PROCESSING"}
+                  {isDelivered ? "DELIVERED" : isRefundPending ? "REFUND IN PROGRESS" : isFailed ? "ACTION NEEDED" : "PROCESSING"}
                 </span>
               </div>
             </div>
@@ -455,35 +471,73 @@ function TrackTransactionContent() {
                 </div>
               </div>
 
-              {/* Step 4: Completion / Delivery */}
+              {/* Step 4: Completion / Delivery / Refund */}
               <div className="flex gap-4">
                 <div className="flex flex-col items-center">
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
                     isDelivered 
                       ? "bg-green-500 text-black shadow-lg shadow-green-500/20" 
+                      : isRefundPending
+                      ? "bg-amber-500 text-black shadow-lg shadow-amber-500/20"
                       : isFailed
                       ? "bg-red-500 text-white"
                       : "bg-muted text-muted-foreground"
                   }`}>
-                    {isDelivered ? <CheckCircle2 className="w-5 h-5" /> : isFailed ? <AlertCircle className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+                    {isDelivered ? (
+                      <CheckCircle2 className="w-5 h-5" />
+                    ) : isRefundPending ? (
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                    ) : isFailed ? (
+                      <AlertCircle className="w-5 h-5" />
+                    ) : (
+                      <Clock className="w-5 h-5" />
+                    )}
                   </div>
                 </div>
                 <div className="pt-1 flex-1">
                   <div className="flex justify-between items-baseline">
-                    <h3 className="text-sm font-bold text-foreground">4. Delivery & Final Receipt</h3>
-                    {isDelivered && (
+                    <h3 className="text-sm font-bold text-foreground">
+                      {isRefundPending ? "4. Automatic Refund in Progress" : "4. Delivery & Final Receipt"}
+                    </h3>
+                    {isDelivered ? (
                       <span className="text-[11px] font-semibold text-green-500">
                         SUCCESS
                       </span>
-                    )}
+                    ) : isRefundPending ? (
+                      <span className="text-[11px] font-semibold text-amber-500">
+                        REFUND PENDING
+                      </span>
+                    ) : isFailed ? (
+                      <span className="text-[11px] font-semibold text-red-500">
+                        ACTION NEEDED
+                      </span>
+                    ) : null}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {isDelivered 
+                    {feedback ? feedback.context : isDelivered 
                       ? "Transaction completed successfully. Service delivered."
-                      : isFailed 
-                      ? `Vending failed: ${tx.failure_reason || "Provider error"}`
                       : "Awaiting final confirmation from telco / provider."}
                   </p>
+
+                  {/* Contextual guidance card for refund pending or action needed */}
+                  {(isRefundPending || isFailed) && feedback && (
+                    <div className={`mt-3 p-3.5 rounded-xl border text-xs flex items-start gap-2.5 ${
+                      isRefundPending 
+                        ? "bg-amber-500/10 border-amber-500/20 text-amber-300"
+                        : "bg-red-500/10 border-red-500/20 text-red-300"
+                    }`}>
+                      <Info className="w-4 h-4 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <p className="font-semibold text-foreground">{feedback.headline}</p>
+                        <p className="text-muted-foreground leading-relaxed">{feedback.nextStepGuidance}</p>
+                        {feedback.reference && (
+                          <p className="font-mono text-[11px] pt-0.5 text-foreground/80">
+                            Support Reference: <span className="font-bold">{feedback.reference}</span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

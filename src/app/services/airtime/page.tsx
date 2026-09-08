@@ -9,7 +9,7 @@ import { AmountSelector } from "@/components/services/AmountSelector";
 import { UnifiedCheckout } from "@/components/checkout/UnifiedCheckout";
 import { OrderPayload } from "@/lib/payment";
 import { Button, buttonVariants } from "@/components/ui/Button";
-import { ArrowLeft, ArrowRight, Smartphone, RefreshCw, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Smartphone, RefreshCw, CheckCircle2, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { isValidKenyanPhone } from "@/lib/validation";
@@ -17,7 +17,20 @@ import { detectCarrier } from "@/lib/carrier";
 import { useAuth } from "@/lib/auth";
 import { getRememberedServiceDestination } from "@/lib/beneficiaries";
 
+import { FAIBA_DATA_BUNDLES, FaibaBundle, IS_FAIBA_BUNDLES_ENABLED } from "@/lib/constants/faiba-bundles";
+
 type Step = 1 | 2 | 3 | 4 | 5;
+
+function getNetworkLogo(net?: string | null): string {
+  switch (net?.toLowerCase()) {
+    case 'airtel': return '/logos/airtel-logo.jpg';
+    case 'telkom': return '/logos/telcom-logo.png';
+    case 'equitel': return '/logos/equitel-logo.jpg';
+    case 'faiba':
+    case 'faiba bundles': return '/logos/faiba-logo.png';
+    default: return '/logos/safaricom-logo.png';
+  }
+}
 
 function AirtimeContent() {
   const [step, setStep] = useState<Step>(1);
@@ -25,6 +38,7 @@ function AirtimeContent() {
   const [phone, setPhone] = useState("");
   const [isPhoneValid, setIsPhoneValid] = useState(false);
   const [amount, setAmount] = useState<number>(0);
+  const [selectedBundle, setSelectedBundle] = useState<FaibaBundle | null>(null);
   const searchParams = useSearchParams();
   const { user } = useAuth();
 
@@ -54,7 +68,9 @@ function AirtimeContent() {
   const handleBack = () => setStep((s) => Math.max(s - 1, 1) as Step);
 
   const detectedCarrier = detectCarrier(phone);
+  const isFaibaBundles = network === "Faiba Bundles";
   const effectiveNetwork: Network = (
+    isFaibaBundles ? "Faiba Bundles" :
     detectedCarrier.name === "AIRTEL" ? "Airtel" :
     detectedCarrier.name === "TELKOM" ? "Telkom" :
     detectedCarrier.name === "EQUITEL" ? "Equitel" :
@@ -65,16 +81,19 @@ function AirtimeContent() {
 
   const isStep1Valid = network !== null || detectedCarrier.name !== "UNKNOWN";
   const isStep2Valid = isPhoneValid;
-  const isStep3Valid = amount >= 5 && amount <= 10000;
+  const isStep3Valid = isFaibaBundles 
+    ? (IS_FAIBA_BUNDLES_ENABLED && selectedBundle !== null && selectedBundle.price > 2 && selectedBundle.price < 7000 && Number.isInteger(selectedBundle.price)) 
+    : (amount > 2 && amount < 7000 && Number.isInteger(amount));
 
   const orderPayload: OrderPayload = {
-    serviceId: `${effectiveNetwork.toLowerCase()}-airtime`,
-    serviceName: `${effectiveNetwork} Airtime`,
-    provider: effectiveNetwork,
+    serviceId: isFaibaBundles ? 'faiba-data' : `${effectiveNetwork.toLowerCase()}-airtime`,
+    serviceName: isFaibaBundles ? `Faiba ${selectedBundle?.name || 'Data Bundle'}` : `${effectiveNetwork} Airtime`,
+    provider: isFaibaBundles ? 'Faiba' : effectiveNetwork,
     destination: phone,
     amount: amount,
     fees: 0,
     paymentPhone: phone,
+    ...(isFaibaBundles && selectedBundle ? { productId: selectedBundle.code } : {})
   };
 
   return (
@@ -155,6 +174,7 @@ function AirtimeContent() {
                 onChange={setPhone} 
                 onValidationChange={setIsPhoneValid}
                 onCarrierChange={(c) => {
+                  if (network === "Faiba Bundles") return;
                   if (c.name === "AIRTEL") setNetwork("Airtel");
                   else if (c.name === "TELKOM") setNetwork("Telkom");
                   else if (c.name === "EQUITEL") setNetwork("Equitel");
@@ -168,7 +188,7 @@ function AirtimeContent() {
                 <div className="flex items-center gap-3">
                   <div className="relative w-8 h-8 rounded-lg overflow-hidden bg-white shrink-0 p-1 flex items-center justify-center border border-border/40">
                     <Image 
-                      src={detectedCarrier.name !== "UNKNOWN" ? detectedCarrier.logoSrc : (network === "Airtel" ? "/logos/airtel-logo.jpg" : network === "Telkom" ? "/logos/telcom-logo.png" : "/logos/safaricom-logo.png")} 
+                      src={detectedCarrier.name !== "UNKNOWN" && !isFaibaBundles ? detectedCarrier.logoSrc : getNetworkLogo(network || effectiveNetwork)} 
                       alt={effectiveNetwork} 
                       fill 
                       sizes="32px"
@@ -179,7 +199,7 @@ function AirtimeContent() {
                     <span className="text-xs text-muted-foreground">Destination Carrier</span>
                     <p className="text-sm font-bold text-foreground flex items-center gap-1.5">
                       {effectiveNetwork} Kenya
-                      {detectedCarrier.name !== "UNKNOWN" && (
+                      {detectedCarrier.name !== "UNKNOWN" && !isFaibaBundles && (
                         <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20">
                           Auto-Detected
                         </span>
@@ -213,7 +233,7 @@ function AirtimeContent() {
           </div>
         )}
 
-        {/* Step 3: Amount */}
+        {/* Step 3: Amount or Bundle Selection */}
         {step === 3 && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Recipient summary banner */}
@@ -221,7 +241,7 @@ function AirtimeContent() {
               <div className="flex items-center gap-2.5">
                 <div className="relative w-6 h-6 rounded-md overflow-hidden bg-white shrink-0">
                   <Image 
-                    src={detectedCarrier.name !== "UNKNOWN" ? detectedCarrier.logoSrc : (effectiveNetwork === "Airtel" ? "/logos/airtel-logo.jpg" : "/logos/safaricom-logo.png")} 
+                    src={detectedCarrier.name !== "UNKNOWN" && !isFaibaBundles ? detectedCarrier.logoSrc : getNetworkLogo(network || effectiveNetwork)} 
                     alt={effectiveNetwork} 
                     fill 
                     sizes="24px"
@@ -245,20 +265,85 @@ function AirtimeContent() {
               </button>
             </div>
 
-            <div className="bg-card border border-border/50 rounded-3xl p-6 md:p-8 shadow-sm">
-              <h2 className="text-xl font-semibold mb-6">How much {effectiveNetwork} airtime?</h2>
-              <AmountSelector 
-                value={amount} 
-                onChange={setAmount} 
-                presets={[50, 100, 250, 500, 1000]}
-              />
-            </div>
+            {isFaibaBundles ? (
+              <div className="bg-card border border-border/50 rounded-3xl p-6 md:p-8 shadow-sm">
+                <h2 className="text-xl font-semibold mb-2">Select Faiba Data Bundle</h2>
+                <p className="text-xs text-muted-foreground mb-6">Choose an official published Faiba bundle package.</p>
+                
+                {!IS_FAIBA_BUNDLES_ENABLED && (
+                  <div className="p-4 mb-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs space-y-2">
+                    <div className="flex items-center gap-2 font-bold text-sm text-amber-400">
+                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                      <span>Faiba Data Bundle Checkout Temporarily Paused</span>
+                    </div>
+                    <p className="text-neutral-300 leading-relaxed">
+                      Faiba data bundle vending is undergoing provider authorization.
+                      Pinless Faiba Airtime is 100% active and available immediately.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setNetwork("Faiba")}
+                      className="text-xs font-bold text-primary hover:underline block pt-1"
+                    >
+                      Switch to Faiba Airtime Top-Up Instead →
+                    </button>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {FAIBA_DATA_BUNDLES.map((bundle) => {
+                    const isSelected = selectedBundle?.code === bundle.code;
+                    return (
+                      <button
+                        key={bundle.code}
+                        type="button"
+                        onClick={() => {
+                          setSelectedBundle(bundle);
+                          setAmount(bundle.price);
+                        }}
+                        className={cn(
+                          "flex flex-col p-4 rounded-2xl border text-left transition-all",
+                          "hover:border-primary/50 hover:shadow-sm",
+                          isSelected
+                            ? "border-primary bg-primary/5 shadow-sm ring-1 ring-primary"
+                            : "border-border/50 bg-card"
+                        )}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                            {bundle.validity}
+                          </span>
+                          <span className="text-base font-bold text-foreground">
+                            KES {bundle.price.toLocaleString()}
+                          </span>
+                        </div>
+                        <p className="text-lg font-bold text-foreground mb-0.5">{bundle.allowance}</p>
+                        <p className="text-xs text-muted-foreground truncate">{bundle.name}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-card border border-border/50 rounded-3xl p-6 md:p-8 shadow-sm">
+                <h2 className="text-xl font-semibold mb-6">How much {effectiveNetwork} airtime?</h2>
+                <AmountSelector 
+                  value={amount} 
+                  onChange={setAmount} 
+                  minAmount={3}
+                  maxAmount={6999}
+                  presets={[50, 100, 250, 500, 1000]}
+                />
+              </div>
+            )}
             <div className="flex flex-col-reverse sm:flex-row justify-between gap-4">
               <Button onClick={handleBack} variant="outline" size="lg">
                 Back
               </Button>
               <Button onClick={handleNext} disabled={!isStep3Valid} size="lg">
-                Continue <ArrowRight className="w-4 h-4 ml-2" />
+                {isFaibaBundles && !IS_FAIBA_BUNDLES_ENABLED 
+                  ? "Checkout Paused (Provider Activation)" 
+                  : <>Continue <ArrowRight className="w-4 h-4 ml-2" /></>}
               </Button>
             </div>
           </div>

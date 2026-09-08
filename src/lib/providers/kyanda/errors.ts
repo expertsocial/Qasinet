@@ -37,7 +37,8 @@ export function mapKyandaError(code: string | number, message?: string, details?
       defaultMessage = 'Airtime Service unavailable.';
       break;
     case '1107':
-      category = 'INSUFFICIENT_FLOAT';
+    case '4000':
+      category = 'INSUFFICIENT_FUNDS';
       defaultMessage = 'Insufficient float balance. Service temporarily unavailable. Please try again shortly.';
       break;
     case '1108':
@@ -46,11 +47,15 @@ export function mapKyandaError(code: string | number, message?: string, details?
       break;
     case '1109':
       category = 'VALIDATION_ERROR';
-      defaultMessage = 'Parameter validation error.';
+      defaultMessage = 'Blank required field.';
       break;
     case '1201':
       category = 'VALIDATION_ERROR';
       defaultMessage = 'Invalid Bank Code';
+      break;
+    case '3101':
+      category = 'VALIDATION_ERROR';
+      defaultMessage = 'Invalid telco prefix.';
       break;
     case '5000':
       category = 'PROVIDER_ERROR';

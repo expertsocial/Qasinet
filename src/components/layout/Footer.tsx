@@ -2,6 +2,7 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ShieldCheck, Mail, Phone, MapPin, Zap, Lock, Heart, CheckCircle2 } from "lucide-react";
+import { getServiceCategories } from "@/lib/services/registry";
 
 export function Footer() {
   const currentYear = new Date().getFullYear();
@@ -46,27 +47,26 @@ export function Footer() {
             </div>
           </div>
 
-          {/* Direct Services */}
+          {/* Direct Services - Registry Driven */}
           <div className="flex flex-col gap-3.5">
             <h4 className="font-bold text-xs uppercase tracking-widest text-foreground">
               Services
             </h4>
             <nav className="flex flex-col gap-2.5 text-sm">
-              <Link href="/services/airtime" className="text-muted-foreground hover:text-primary transition-colors">
-                Airtime Top-Up
-              </Link>
-              <Link href="/services/data" className="text-muted-foreground hover:text-primary transition-colors">
-                Internet Data Bundles
-              </Link>
-              <Link href="/services/electricity" className="text-muted-foreground hover:text-primary transition-colors">
-                KPLC Electricity Tokens
-              </Link>
-              <Link href="/services/tv" className="text-muted-foreground hover:text-primary transition-colors">
-                DStv & GOtv Subscriptions
-              </Link>
-              <Link href="/services/water" className="text-muted-foreground hover:text-primary transition-colors">
-                Nairobi Water Utility
-              </Link>
+              {getServiceCategories().map((cat) => (
+                <Link 
+                  key={cat.id} 
+                  href={cat.href} 
+                  className="text-muted-foreground hover:text-primary transition-colors flex items-center justify-between gap-1 group"
+                >
+                  <span>{cat.name}</span>
+                  {cat.status === 'coming_soon' && (
+                    <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                      Soon
+                    </span>
+                  )}
+                </Link>
+              ))}
             </nav>
           </div>
 

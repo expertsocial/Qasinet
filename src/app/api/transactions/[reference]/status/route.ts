@@ -122,7 +122,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ refe
       metadata: metadata,
       createdAt: tx.created_at,
       message: tx.failure_reason,
-    }, { status: 200 });
+    }, { 
+      status: 200,
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+      },
+    });
 
   } catch (error) {
     console.error('Status check error:', error);

@@ -5,8 +5,8 @@ import { OrderPayload, PaymentService, PaymentState } from "@/lib/payment";
 import { CheckoutReview } from "./CheckoutReview";
 import { TransactionStatus } from "@/components/services/TransactionStatus";
 import { Button } from "@/components/ui/Button";
-import { detectCarrier } from "@/lib/carrier";
 import { isValidKenyanPhone, normalizeKenyanPhone } from "@/lib/validation";
+import { isUtilityService } from "@/lib/account-validation";
 import { rememberServiceDestination } from "@/lib/beneficiaries";
 import { toast } from "react-hot-toast";
 
@@ -25,18 +25,25 @@ export function UnifiedCheckout({ order, onEditDetails, onSuccess }: UnifiedChec
   
   // Dedicated M-Pesa Payment Phone State
   const [paymentPhone, setPaymentPhone] = useState<string>(() => {
-    const destCarrier = detectCarrier(order.destination || "");
-    if (destCarrier.name === "SAFARICOM") {
-      return order.destination;
+    // 1. If order already provides a valid paymentPhone (e.g. from utility Step 2), use it
+    if (order.paymentPhone && isValidKenyanPhone(order.paymentPhone)) {
+      return order.paymentPhone;
+    }
+    // 2. For telco/airtime/bundles, default to destination if it is a Safaricom number
+    const isTelco = !isUtilityService(order.serviceId);
+    if (isTelco) {
+      const destCarrier = detectCarrier(order.destination || "");
+      if (destCarrier.name === "SAFARICOM") {
+        return order.destination;
+      }
     }
     return order.paymentPhone || "";
   });
 
-  // Load last used M-Pesa phone on mount if paymentPhone is non-Safaricom
+  // Load last used M-Pesa phone on mount only if paymentPhone is empty or invalid
   useEffect(() => {
     try {
-      const destCarrier = detectCarrier(order.destination || "");
-      if (destCarrier.name !== "SAFARICOM") {
+      if (!paymentPhone || !isValidKenyanPhone(paymentPhone)) {
         const lastMpesa = localStorage.getItem("qasinet_last_mpesa_phone");
         if (lastMpesa && isValidKenyanPhone(lastMpesa)) {
           setPaymentPhone(lastMpesa);
@@ -45,7 +52,7 @@ export function UnifiedCheckout({ order, onEditDetails, onSuccess }: UnifiedChec
     } catch (e) {
       // Ignore
     }
-  }, [order.destination]);
+  }, [order.destination, paymentPhone]);
 
   // Payment refs
   const [reference, setReference] = useState<string>("");

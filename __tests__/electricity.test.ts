@@ -224,9 +224,9 @@ describe('Electricity & PayBill Integration Suite', () => {
       expect(err.category).toBe('VALIDATION_ERROR');
     });
 
-    it('maps 1107 to INSUFFICIENT_FLOAT', () => {
+    it('maps 1107 to INSUFFICIENT_FUNDS', () => {
       const err = mapKyandaError('1107');
-      expect(err.category).toBe('INSUFFICIENT_FLOAT');
+      expect(err.category).toBe('INSUFFICIENT_FUNDS');
     });
 
     it('maps 7001 to VALIDATION_ERROR', () => {

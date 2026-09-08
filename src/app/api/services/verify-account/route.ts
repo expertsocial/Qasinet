@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { KyandaProvider } from '@/lib/providers/kyanda/provider';
+import { validateServiceAccount } from '@/lib/account-validation';
 
 function getTelcoForService(service: string): string {
   const s = (service || '').toLowerCase();
@@ -10,7 +11,7 @@ function getTelcoForService(service: string): string {
   if (s.includes('gotv')) return 'GOTV';
   if (s.includes('startimes')) return 'STARTIMES';
   if (s.includes('zuku')) return 'ZUKU';
-  if (s.includes('water')) return 'NAIROBIWATER';
+  if (s.includes('water')) return 'NAIROBI_WTR';
   return 'KPLC_PREPAID';
 }
 
@@ -19,7 +20,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { account, service } = body;
 
-    if (!account || typeof account !== 'string' || account.trim().length < 4) {
+    if (!account || typeof account !== 'string') {
       return NextResponse.json({ 
         valid: false, 
         message: 'Please provide a valid account or meter number.' 
@@ -27,26 +28,53 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanAccount = account.trim();
+    
+    // Validate format per service
+    const formatValidation = validateServiceAccount(cleanAccount, service || '');
+    if (!formatValidation.isValid) {
+      return NextResponse.json({
+        valid: false,
+        message: formatValidation.error || 'Invalid account number format.',
+        balance: 0
+      }, { status: 400 });
+    }
+
     const telco = getTelcoForService(service);
-
     const provider = new KyandaProvider();
-    const result = await provider.verifyAccount(cleanAccount, telco);
+    
+    try {
+      const result = await provider.verifyAccount(formatValidation.normalized, telco);
+      if (result.valid) {
+        return NextResponse.json({
+          valid: true,
+          customerName: result.customerName || null,
+          balance: result.balance || 0,
+          accountNumber: formatValidation.normalized,
+          service: telco,
+          message: result.message || 'Account verified successfully'
+        }, { status: 200 });
+      }
+    } catch {
+      // Kyanda does not have a public account-query endpoint (404).
+      // Since syntax format is valid, proceed without customer name.
+    }
 
+    // Format is valid, name lookup is optional/unsupported by upstream biller
     return NextResponse.json({
-      valid: result.valid,
-      customerName: result.customerName || null,
-      balance: result.balance || 0,
-      accountNumber: cleanAccount,
+      valid: true,
+      customerName: null,
+      balance: 0,
+      accountNumber: formatValidation.normalized,
       service: telco,
-      message: result.message || (result.valid ? 'Account verified successfully' : 'Account not found')
+      message: 'Account format verified'
     }, { status: 200 });
 
   } catch (error: any) {
     console.error('[VerifyAccount API] Error:', error.message);
     return NextResponse.json({
       valid: false,
-      message: error.message || 'Unable to verify account at this time. Please check the number and try again.',
+      message: error.message || 'Unable to verify account at this time.',
       balance: 0
-    }, { status: 200 });
+    }, { status: 500 });
   }
 }

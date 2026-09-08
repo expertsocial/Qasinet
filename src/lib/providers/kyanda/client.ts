@@ -71,16 +71,18 @@ export class KyandaClient {
           // not json
         }
 
+        console.log(`[KyandaClient] Response ${requestId}: httpStatus=${response.status}, status_code=${responseData?.status_code || 'none'}`);
+
+        // Check for application-level status codes (present in HTTP 200 or HTTP 4xx JSON bodies)
+        if (responseData?.status_code && responseData.status_code !== '0000' && responseData.status_code !== '1100') {
+          const detailedMsg = responseData.transactiontxt || responseData.message;
+          throw mapKyandaError(responseData.status_code, detailedMsg, responseData);
+        }
+
+        // Handle generic HTTP errors when no Kyanda status_code is available
         if (!response.ok) {
           const errMsg = responseData ? (responseData.transactiontxt || responseData.message || JSON.stringify(responseData)) : response.statusText;
           throw new Error(`HTTP Error: ${response.status} ${errMsg}`);
-        }
-
-        console.log(`[KyandaClient] Response ${requestId}: status=${responseData?.status_code || 'unknown'}`);
-
-        // Check for application level errors
-        if (responseData.status_code && responseData.status_code !== '0000' && responseData.status_code !== '1100') {
-           throw mapKyandaError(responseData.status_code, responseData.transactiontxt || responseData.message, responseData);
         }
 
         return responseData as T;

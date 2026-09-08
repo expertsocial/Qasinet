@@ -42,9 +42,14 @@ describe('Kyanda Provider Foundation', () => {
       expect(error.category).toBe('PROVIDER_ERROR');
     });
 
-    it('maps 1107 to INSUFFICIENT_FLOAT', () => {
+    it('maps 1107 to INSUFFICIENT_FUNDS', () => {
       const error = mapKyandaError('1107');
-      expect(error.category).toBe('INSUFFICIENT_FLOAT');
+      expect(error.category).toBe('INSUFFICIENT_FUNDS');
+    });
+
+    it('maps 4000 to INSUFFICIENT_FUNDS', () => {
+      const error = mapKyandaError('4000');
+      expect(error.category).toBe('INSUFFICIENT_FUNDS');
     });
 
     it('maps 8006 to DUPLICATE_REQUEST', () => {
@@ -81,7 +86,7 @@ describe('Kyanda Provider Foundation', () => {
 
       const client = new KyandaClient();
       await expect(client.request('/test', {})).rejects.toMatchObject({
-        category: 'INSUFFICIENT_FLOAT',
+        category: 'INSUFFICIENT_FUNDS',
         message: 'Insufficient float balance.',
       });
       // Should not retry on these API errors

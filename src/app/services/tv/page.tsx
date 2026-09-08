@@ -28,6 +28,7 @@ export default function TvPage() {
   
   // Account Verification
   const [accountNumber, setAccountNumber] = useState("");
+  const [isAccountValid, setIsAccountValid] = useState(false);
   const [customerName, setCustomerName] = useState<string | null>(null);
   const [amount, setAmount] = useState<number>(0);
   
@@ -155,6 +156,8 @@ export default function TvPage() {
                 selectedProviderId={provider} 
                 onSelect={(id) => {
                   setProvider(id);
+                  setAccountNumber("");
+                  setIsAccountValid(false);
                   setCustomerName(null);
                   if (id === "dstv") setAmount(1050);
                   else if (id === "gotv") setAmount(650);
@@ -188,6 +191,8 @@ export default function TvPage() {
                   setAccountNumber(val);
                   setCustomerName(null);
                 }}
+                serviceType={provider || "dstv"}
+                onValidationChange={setIsAccountValid}
                 onVerify={handleVerifyAccount}
                 verifiedCustomer={customerName}
               />
@@ -207,7 +212,7 @@ export default function TvPage() {
               </Button>
               <Button 
                 onClick={handleNext} 
-                disabled={!accountNumber.trim() || amount < 50} 
+                disabled={!isAccountValid || amount < 50} 
                 size="lg"
               >
                 Continue <ArrowRight className="w-4 h-4 ml-2" />

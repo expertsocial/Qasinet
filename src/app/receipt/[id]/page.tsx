@@ -17,7 +17,8 @@ import {
   RefreshCw, 
   ExternalLink, 
   X,
-  Tv
+  Tv,
+  Droplets
 } from "lucide-react";
 import Link from "next/link";
 import toast from "react-hot-toast";
@@ -210,6 +211,10 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
     Boolean(data?.service?.name?.toLowerCase().includes("gotv")) ||
     Boolean(data?.service?.name?.toLowerCase().includes("zuku")) ||
     Boolean(data?.service?.name?.toLowerCase().includes("startimes"));
+  const isWater = 
+    data?.service?.type === "water" ||
+    Boolean(data?.service?.slug?.includes("water")) ||
+    Boolean(data?.service?.name?.toLowerCase().includes("water"));
 
   if (loading && !data) {
     return (
@@ -411,6 +416,22 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 Smartcard / Decoder: <span className="font-mono font-semibold text-foreground">{data?.destination}</span>. Your channels should be active within a few minutes.
+              </p>
+            </div>
+          )}
+
+          {/* WATER BILL PAYMENT BANNER */}
+          {isWater && isSuccess && (
+            <div className="p-6 sm:p-8 bg-gradient-to-b from-cyan-500/15 to-cyan-500/5 border-b border-cyan-500/30">
+              <div className="flex items-center gap-2 text-cyan-700 dark:text-cyan-400 font-bold text-sm tracking-wide mb-1">
+                <Droplets className="w-5 h-5" />
+                <span>WATER BILL PAYMENT SUCCESSFUL</span>
+              </div>
+              <p className="text-base text-foreground font-bold">
+                Your water bill payment for account {data?.destination} was successful.
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Water Utility: <span className="font-semibold text-foreground">{data?.service?.name || "Nairobi Water"}</span>. Your account balance will be credited promptly.
               </p>
             </div>
           )}

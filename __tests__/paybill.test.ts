@@ -166,6 +166,77 @@ describe('Shared PayBill Service Handler (TV & Electricity)', () => {
     });
   });
 
+  describe('vendWater via Shared Handler', () => {
+    it('dispatches water bill payment with NAIROBI_WTR and valid payload', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          status: 'Success',
+          status_code: '0000',
+          merchant_reference: 'KY-WATER-001',
+          transactionId: 'TX-WATER-999',
+          transactiontxt: 'Your request has been posted successfully!',
+        }),
+      } as Response);
+
+      const provider = new KyandaProvider();
+      const handler = new PayBillServiceHandler(provider);
+
+      const result = await handler.vendWater({
+        amount: 500,
+        accountNumber: '1234567',
+        initiatorPhone: '0722647928',
+      });
+
+      expect(result.merchant_reference).toBe('KY-WATER-001');
+
+      // Verify request payload shape sent to Kyanda Pay Bill API
+      const fetchCall = mockFetch.mock.calls[0];
+      expect(fetchCall[0]).toContain('/billing/v1/bill/create');
+      const init = fetchCall[1] as RequestInit;
+      const body = JSON.parse(init.body as string) as Record<string, unknown>;
+
+      expect(body.account).toBe('1234567');
+      expect(body.amount).toBe('500');
+      expect(body.telco).toBe('NAIROBI_WTR');
+      expect(body.initiatorPhone).toBe('0722647928');
+      expect(body.MerchantID).toBe('test-merchant');
+      expect(body.signature).toMatch(/^[a-f0-9]{64}$/);
+    });
+
+    it('throws VALIDATION_ERROR if water account number is empty', async () => {
+      const provider = new KyandaProvider();
+      const handler = new PayBillServiceHandler(provider);
+
+      await expect(
+        handler.vendWater({
+          amount: 500,
+          accountNumber: '   ',
+          initiatorPhone: '0722647928',
+        })
+      ).rejects.toMatchObject({
+        category: 'VALIDATION_ERROR',
+        message: 'Water account number is required.',
+      });
+    });
+
+    it('throws VALIDATION_ERROR if amount is 0 or negative', async () => {
+      const provider = new KyandaProvider();
+      const handler = new PayBillServiceHandler(provider);
+
+      await expect(
+        handler.vendWater({
+          amount: 0,
+          accountNumber: '1234567',
+          initiatorPhone: '0722647928',
+        })
+      ).rejects.toMatchObject({
+        category: 'VALIDATION_ERROR',
+        message: 'A valid payment amount greater than 0 is required.',
+      });
+    });
+  });
+
   describe('Pay Bill Error Handling & Code Mappings', () => {
     it('maps 8003 to PROVIDER_ERROR for invalid telco', () => {
       const err = mapKyandaError('8003');
@@ -178,9 +249,10 @@ describe('Shared PayBill Service Handler (TV & Electricity)', () => {
       expect(err.category).toBe('VALIDATION_ERROR');
     });
 
-    it('maps 1107 to INSUFFICIENT_FLOAT for float exhaustion', () => {
+    it('maps 1107 to INSUFFICIENT_FUNDS for float exhaustion', () => {
       const err = mapKyandaError('1107');
-      expect(err.category).toBe('INSUFFICIENT_FLOAT');
+      expect(err.category).toBe('INSUFFICIENT_FUNDS');
     });
   });
 });
+

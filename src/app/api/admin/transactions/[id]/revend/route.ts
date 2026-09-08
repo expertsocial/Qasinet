@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { TransactionOrchestrator } from '@/lib/services/orchestrator';
 import { KyandaProvider } from '@/lib/providers/kyanda/provider';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { QasiNetError } from '@/lib/errors';
 
 function getKyandaTelco(slug: string): string {
   const s = (slug || '').toLowerCase();
@@ -13,11 +14,12 @@ function getKyandaTelco(slug: string): string {
   if (s.includes('gotv')) return 'GOTV';
   if (s.includes('zuku')) return 'ZUKU';
   if (s.includes('startimes')) return 'STARTIMES';
-  if (s.includes('water') || s.includes('nairobi-water') || s.includes('nairobiwater')) return 'NAIROBIWATER';
+  if (s.includes('water') || s.includes('nairobi-water') || s.includes('nairobiwater') || s.includes('nairobi_wtr')) return 'NAIROBI_WTR';
   if (s.includes('safaricom')) return 'SAFARICOM';
   if (s.includes('airtel')) return 'AIRTEL';
   if (s.includes('telkom')) return 'TELKOM';
   if (s.includes('equitel')) return 'EQUITEL';
+  if (s.includes('faiba-bundle') || s.includes('faiba_b') || s.includes('faiba-data')) return 'FAIBA_B';
   if (s.includes('faiba')) return 'FAIBA';
   return 'SAFARICOM';
 }
@@ -68,7 +70,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const serviceSlug = services?.slug || (Array.isArray(services) && services[0]?.slug) || '';
     const serviceType = services?.type || (Array.isArray(services) && services[0]?.type) || '';
     let telco = getKyandaTelco(serviceSlug);
-    const productCode = products?.provider_product_id || (Array.isArray(products) && products[0]?.provider_product_id) || undefined;
+    let productCode = products?.provider_product_id || (Array.isArray(products) && products[0]?.provider_product_id) || undefined;
+
+    if (!productCode) {
+      const { data: createdEvent } = await supabaseService
+        .from('transaction_events')
+        .select('details')
+        .eq('transaction_id', tx.id)
+        .eq('status', 'CREATED')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (createdEvent?.details?.productCode) {
+        productCode = createdEvent.details.productCode;
+      }
+    }
 
     // For Faiba Bundles, Kyanda expects telco 'FAIBA_B' with productCode
     if (serviceSlug.includes('faiba') && (serviceType === 'data' || productCode)) {
@@ -78,6 +94,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const initiatorPhone = process.env.KYANDA_INITIATOR_PHONE || '0722647928';
     const isElectricity = serviceSlug.includes('kplc') || serviceSlug.includes('electricity') || serviceType === 'electricity';
     const isTv = serviceSlug.includes('tv') || serviceSlug.includes('dstv') || serviceSlug.includes('gotv') || serviceSlug.includes('zuku') || serviceSlug.includes('startimes') || serviceType === 'tv';
+    const isWater = serviceSlug.includes('water') || serviceType === 'water';
 
     let vendingResult: { merchant_reference: string; [key: string]: any };
 
@@ -100,7 +117,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         provider: telco,
         initiatorPhone
       });
+    } else if (isWater) {
+      const { PayBillServiceHandler } = await import('@/lib/services/paybill');
+      const paybillHandler = new PayBillServiceHandler(kyandaProvider);
+      vendingResult = await paybillHandler.vendWater({
+        amount: tx.amount,
+        accountNumber: tx.destination,
+        initiatorPhone
+      });
     } else if (serviceType === 'airtime' || serviceType === 'data') {
+      if (serviceType === 'data' && !serviceSlug.includes('faiba')) {
+        throw new QasiNetError('SERVICE_UNAVAILABLE', 'Data bundle vending is not supported on this network. Only Faiba 4G (FAIBA_B) is supported by Kyanda.');
+      }
       vendingResult = await kyandaProvider.buyAirtime(
         tx.amount,
         tx.destination,

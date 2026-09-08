@@ -26,6 +26,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
+import { getServiceCategories } from "@/lib/services/registry";
 
 export function Navbar() {
   const { theme, setTheme } = useTheme();
@@ -72,43 +73,18 @@ export function Navbar() {
     };
   }, []);
 
-  const serviceLinks = [
-    { 
-      name: "Airtime Top-Up", 
-      desc: "Safaricom, Airtel, Telkom & Equitel", 
-      href: "/services/airtime", 
-      icon: Smartphone,
-      badge: "Instant"
-    },
-    { 
-      name: "Data Bundles", 
-      desc: "Daily, weekly & monthly high-speed", 
-      href: "/services/data", 
-      icon: Wifi,
-      badge: "Best Value"
-    },
-    { 
-      name: "Electricity Tokens", 
-      desc: "KPLC Prepaid & Postpaid meters", 
-      href: "/services/electricity", 
-      icon: Zap,
-      badge: "24/7"
-    },
-    { 
-      name: "TV Subscriptions", 
-      desc: "DStv, GOtv, Zuku & StarTimes", 
-      href: "/services/tv", 
-      icon: Tv,
-      badge: "Direct"
-    },
-    { 
-      name: "Water Utility", 
-      desc: "Nairobi Water & local meters", 
-      href: "/services/water", 
-      icon: Droplets,
-      badge: "Zero Fee"
-    },
-  ];
+  const serviceCategories = getServiceCategories();
+  const serviceLinks = serviceCategories.map((cat) => ({
+    name: cat.name,
+    desc: cat.desc,
+    href: cat.href,
+    icon: cat.iconName === 'Smartphone' ? Smartphone :
+          cat.iconName === 'Wifi' ? Wifi :
+          cat.iconName === 'Zap' ? Zap :
+          cat.iconName === 'Tv' ? Tv : Droplets,
+    badge: cat.status === 'coming_soon' ? 'Coming Soon' : cat.badge,
+    status: cat.status,
+  }));
 
   return (
     <header

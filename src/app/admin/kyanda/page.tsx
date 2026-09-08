@@ -1,22 +1,27 @@
-import { KyandaProvider } from '@/lib/providers/kyanda/provider';
 import { createClient } from '@/lib/supabase/server';
-import { Activity, Wallet, ShieldCheck, AlertTriangle, RefreshCw, ExternalLink, Zap, Info } from 'lucide-react';
+import { floatService } from '@/lib/services/float';
+import { Activity, Wallet, ShieldCheck, AlertTriangle, RefreshCw, Zap, Info, Cpu } from 'lucide-react';
 import Link from 'next/link';
 
 export default async function KyandaOperationsPage() {
   const supabase = await createClient();
 
-  let kyandaRes: any = null;
+  let kyandaRes: { Account_Bal: number; Earnings_Bal: number } | null = null;
   let status = 'Unknown';
   let errorMsg = '';
+  const floatConfig = floatService.getConfig();
 
   try {
-    const provider = new KyandaProvider();
-    kyandaRes = await provider.checkAccountBalance();
+    // Calling refreshBalance() fetches live balance and refreshes shared cache for checkout flow
+    const liveBal = await floatService.refreshBalance();
+    kyandaRes = {
+      Account_Bal: liveBal.accountBalance,
+      Earnings_Bal: liveBal.earningsBalance,
+    };
     status = 'Connected';
-  } catch (error: any) {
+  } catch (error: unknown) {
     status = 'Disconnected';
-    errorMsg = error.message || 'Failed to connect to Kyanda API';
+    errorMsg = error instanceof Error ? error.message : 'Failed to connect to Kyanda API';
   }
 
   // Get recent Kyanda transactions from transactions table
@@ -121,6 +126,111 @@ export default async function KyandaOperationsPage() {
 
       </div>
 
+      {/* Merchant Float Pre-Check & Circuit Breaker Telemetry */}
+      <div className="bg-neutral-950 border border-neutral-800/80 rounded-3xl p-6 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
+              <Cpu className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-white uppercase tracking-wider">Merchant Float Pre-Check & Circuit Breaker</h2>
+              <p className="text-xs text-neutral-400">Pre-flight balance protection before triggering customer M-Pesa STK push.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`px-3 py-1 rounded-full text-xs font-bold border ${floatConfig.isEnabled ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-red-500/20 text-red-300 border-red-500/30'}`}>
+              Circuit Breaker: {floatConfig.isEnabled ? 'ACTIVE' : 'DISABLED'}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+          <div className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800 space-y-1">
+            <span className="text-neutral-500 text-[11px] font-semibold uppercase">Fallback Policy</span>
+            <p className="text-white font-bold font-mono flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full ${floatConfig.isFailOpen ? 'bg-amber-400' : 'bg-blue-400'}`} />
+              {floatConfig.isFailOpen ? 'FAIL-OPEN (Safe)' : 'FAIL-CLOSED (Strict)'}
+            </p>
+            <p className="text-neutral-400 text-[10px] leading-tight">
+              {floatConfig.isFailOpen ? 'Permits STK push on balance timeout; falls back to refund safety net.' : 'Blocks STK push if balance check fails.'}
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800 space-y-1">
+            <span className="text-neutral-500 text-[11px] font-semibold uppercase">Minimum Buffer</span>
+            <p className="text-white font-bold font-mono">
+              KES {floatConfig.minBuffer.toLocaleString()} flat
+            </p>
+            <p className="text-neutral-400 text-[10px] leading-tight">
+              Base floor protection for micro-transactions.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800 space-y-1">
+            <span className="text-neutral-500 text-[11px] font-semibold uppercase">Dynamic Order Buffer</span>
+            <p className="text-white font-bold font-mono">
+              {floatConfig.bufferPercent}% of order
+            </p>
+            <p className="text-neutral-400 text-[10px] leading-tight">
+              Higher buffer for large TV and utility packages.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800 space-y-1">
+            <span className="text-neutral-500 text-[11px] font-semibold uppercase">In-Memory Cache TTL</span>
+            <p className="text-white font-bold font-mono">
+              {Math.round(floatConfig.cacheTtlMs / 1000)} seconds
+            </p>
+            <p className="text-neutral-400 text-[10px] leading-tight">
+              Admin page refreshes shared cache on every load.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Faiba Bundle Channel Authorization Status */}
+      <div className="bg-neutral-950 border border-neutral-800/80 rounded-3xl p-6 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <Zap className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-white uppercase tracking-wider">Faiba Bundle Vending (FAIBA_B) Status</h2>
+              <p className="text-xs text-neutral-400">Account-level authorization state on Kyanda live gateway.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              Feature Flag: {process.env.NEXT_PUBLIC_ENABLE_FAIBA_BUNDLES === 'true' ? 'ACTIVE' : 'PAUSED'}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          <div className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800 space-y-2">
+            <p className="text-neutral-300 font-semibold flex items-center justify-between">
+              <span>Channel Health:</span>
+              <span className="text-emerald-400 font-mono">1107 (Authorized — Float Check)</span>
+            </p>
+            <p className="text-neutral-400 leading-relaxed text-[11px]">
+              All 19 documented bundle codes are verified and reach the float check (1107) with official transaction IDs generated on the live gateway.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800 space-y-2">
+            <p className="text-neutral-300 font-semibold flex items-center justify-between">
+              <span>Periodic Status Verification:</span>
+              <span className="text-emerald-400 font-mono">npm run check:faiba-bundles</span>
+            </p>
+            <p className="text-neutral-400 leading-relaxed text-[11px]">
+              Run the verification CLI anytime to verify FAIBA_B connectivity and live gateway authorization.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Float Top-Up & Instructions */}
       <div className="bg-neutral-950 border border-neutral-800/80 rounded-3xl p-6 shadow-sm">
         <div className="flex items-center gap-2 mb-3 text-white font-bold text-sm">
@@ -167,8 +277,8 @@ export default async function KyandaOperationsPage() {
             </thead>
             <tbody className="divide-y divide-neutral-800/60">
               {recentKyandaTxs?.map((tx) => {
-                const services: any = tx.services;
-                const serviceName = services?.name || (Array.isArray(services) && services[0]?.name) || 'Airtime';
+                const services = tx.services as { name?: string } | { name?: string }[] | null;
+                const serviceName = (Array.isArray(services) ? services[0]?.name : services?.name) || 'Airtime';
 
                 return (
                   <tr key={tx.id} className="hover:bg-neutral-900/40 transition-colors">

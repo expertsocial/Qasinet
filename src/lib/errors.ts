@@ -5,6 +5,7 @@ export type ErrorCategory =
   | 'TIMEOUT'
   | 'DUPLICATE_REQUEST'
   | 'INSUFFICIENT_FLOAT'
+  | 'INSUFFICIENT_FUNDS'
   | 'SERVICE_UNAVAILABLE'
   | 'UNKNOWN';
 

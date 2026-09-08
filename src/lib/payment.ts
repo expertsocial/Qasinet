@@ -4,6 +4,7 @@ export type PaymentState =
   | "CONFIRMED"
   | "PROCESSING"
   | "SUCCESS"
+  | "REFUND_PENDING"
   | "FAILED"
   | "TIMEOUT"
   | "UNKNOWN";
@@ -95,32 +96,37 @@ export class PaymentService {
     
     // Map the database status to the frontend PaymentState
     const dbState = data.state;
+    const msg = data.message || '';
     let paymentState: PaymentState = "UNKNOWN";
 
-    switch (dbState) {
-      case 'CREATED':
-      case 'PAYMENT_PENDING':
-        paymentState = "PENDING";
-        break;
-      case 'PAYMENT_CONFIRMED':
-        paymentState = "CONFIRMED";
-        break;
-      case 'VENDING_PENDING':
-        paymentState = "PROCESSING";
-        break;
-      case 'SUCCESS':
-        paymentState = "SUCCESS";
-        break;
-      case 'PAYMENT_FAILED':
-      case 'VENDING_FAILED':
-      case 'REVERSED':
-        paymentState = "FAILED";
-        break;
-      case 'TIMEOUT':
-        paymentState = "TIMEOUT";
-        break;
-      default:
-        paymentState = "UNKNOWN";
+    if (dbState === 'VENDING_FAILED_REFUND_PENDING' || msg.includes('[REFUND_PENDING]') || msg.toLowerCase().includes('refund')) {
+      paymentState = "REFUND_PENDING";
+    } else {
+      switch (dbState) {
+        case 'CREATED':
+        case 'PAYMENT_PENDING':
+          paymentState = "PENDING";
+          break;
+        case 'PAYMENT_CONFIRMED':
+          paymentState = "CONFIRMED";
+          break;
+        case 'VENDING_PENDING':
+          paymentState = "PROCESSING";
+          break;
+        case 'SUCCESS':
+          paymentState = "SUCCESS";
+          break;
+        case 'PAYMENT_FAILED':
+        case 'VENDING_FAILED':
+        case 'REVERSED':
+          paymentState = "FAILED";
+          break;
+        case 'TIMEOUT':
+          paymentState = "TIMEOUT";
+          break;
+        default:
+          paymentState = "UNKNOWN";
+      }
     }
 
     return { 

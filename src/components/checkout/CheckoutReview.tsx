@@ -5,6 +5,7 @@ import Image from "next/image";
 import { OrderPayload } from "@/lib/payment";
 import { detectCarrier } from "@/lib/carrier";
 import { isValidKenyanPhone, normalizeKenyanPhone } from "@/lib/validation";
+import { isUtilityService, getServiceDestinationLabel } from "@/lib/account-validation";
 
 interface CheckoutReviewProps {
   order: OrderPayload;
@@ -23,10 +24,12 @@ export function CheckoutReview({
   const [isEditingPaymentPhone, setIsEditingPaymentPhone] = useState(false);
 
   const totalAmount = order.amount + order.fees;
+  const isUtility = isUtilityService(order.serviceId);
+  const destLabel = getServiceDestinationLabel(order.serviceId);
 
-  // Destination Carrier Detection
-  const destCarrier = detectCarrier(order.destination);
-  const isDestSafaricom = destCarrier.name === "SAFARICOM";
+  // Destination Carrier Detection (only for mobile lines)
+  const destCarrier = !isUtility ? detectCarrier(order.destination) : null;
+  const isDestSafaricom = destCarrier?.name === "SAFARICOM";
 
   // Paying Phone Carrier Detection
   const payCarrier = detectCarrier(paymentPhone);
@@ -48,12 +51,12 @@ export function CheckoutReview({
     }
   }, []);
 
-  // If destination is not Safaricom, ensure payment phone editor is open
+  // If destination is not Safaricom or service is utility, ensure payment phone editor is open
   useEffect(() => {
-    if (!isDestSafaricom && (!paymentPhone || paymentPhone === order.destination)) {
+    if (isUtility || (!isDestSafaricom && (!paymentPhone || paymentPhone === order.destination))) {
       setIsEditingPaymentPhone(true);
     }
-  }, [isDestSafaricom, order.destination, paymentPhone]);
+  }, [isUtility, isDestSafaricom, order.destination, paymentPhone]);
 
   return (
     <div className={cn("rounded-3xl border border-border/60 bg-card overflow-hidden shadow-sm space-y-6", className)}>
@@ -84,25 +87,31 @@ export function CheckoutReview({
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <Smartphone className="w-3.5 h-3.5 text-primary" />
-              Service Recipient / Destination
+              {isUtility ? destLabel : "Service Recipient / Destination"}
             </span>
-            <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border shadow-sm", destCarrier.badgeBg, destCarrier.borderBg)}>
-              <span className="relative w-3.5 h-3.5 rounded-full overflow-hidden bg-white shrink-0 inline-block">
-                <Image 
-                  src={destCarrier.logoSrc} 
-                  alt={destCarrier.displayName} 
-                  fill 
-                  sizes="14px"
-                  className="object-contain p-0.5" 
-                />
+            {destCarrier ? (
+              <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border shadow-sm", destCarrier.badgeBg, destCarrier.borderBg)}>
+                <span className="relative w-3.5 h-3.5 rounded-full overflow-hidden bg-white shrink-0 inline-block">
+                  <Image 
+                    src={destCarrier.logoSrc} 
+                    alt={destCarrier.displayName} 
+                    fill 
+                    sizes="14px"
+                    className="object-contain p-0.5" 
+                  />
+                </span>
+                <span>{destCarrier.displayName}</span>
               </span>
-              <span>{destCarrier.displayName}</span>
-            </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border shadow-sm bg-primary/10 text-primary border-primary/20">
+                <span>{order.provider || order.serviceName}</span>
+              </span>
+            )}
           </div>
 
           <div className="flex items-center justify-between text-sm">
             <div>
-              <p className="text-xs text-muted-foreground font-medium">{order.provider || destCarrier.displayName} ({order.serviceName})</p>
+              <p className="text-xs text-muted-foreground font-medium">{order.provider || destCarrier?.displayName || order.serviceName}</p>
               <p className="text-base font-black font-mono tracking-wide text-foreground">{order.destination}</p>
             </div>
             {order.metadata?.package && (
@@ -136,7 +145,7 @@ export function CheckoutReview({
               </div>
             </div>
 
-            {isDestSafaricom && !isEditingPaymentPhone && (
+            {!isUtility && isDestSafaricom && !isEditingPaymentPhone && (
               <button
                 type="button"
                 onClick={() => setIsEditingPaymentPhone(true)}
@@ -147,12 +156,12 @@ export function CheckoutReview({
             )}
           </div>
 
-          {/* Quick Notice for non-Safaricom numbers */}
-          {!isDestSafaricom && (
+          {/* Quick Notice for non-Safaricom mobile destinations */}
+          {!isUtility && !isDestSafaricom && (
             <div className="flex items-start gap-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
               <p>
-                Delivering to <strong>{destCarrier.displayName} ({order.destination})</strong>. Please enter your <strong>Safaricom M-Pesa number</strong> below to complete payment.
+                Delivering to <strong>{destCarrier?.displayName || 'recipient'} ({order.destination})</strong>. Please enter your <strong>Safaricom M-Pesa number</strong> below to complete payment.
               </p>
             </div>
           )}

@@ -68,6 +68,7 @@ export async function GET() {
         )
       `)
       .eq('type', 'data')
+      .eq('slug', 'faiba-data')
       .eq('is_active', true);
 
     if (error) {
@@ -76,11 +77,7 @@ export async function GET() {
     }
 
     const networkMap: Record<string, any[]> = {
-      Safaricom: [],
-      Airtel: [],
-      Telkom: [],
-      Faiba: [],
-      Equitel: []
+      Faiba: []
     };
 
     services?.forEach((svc) => {

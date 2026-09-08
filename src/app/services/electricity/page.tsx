@@ -21,6 +21,7 @@ export default function ElectricityPage() {
   
   // Account Verification
   const [accountNumber, setAccountNumber] = useState("");
+  const [isAccountValid, setIsAccountValid] = useState(false);
   const [customerName, setCustomerName] = useState<string | null>(null);
   
   // Payment Details
@@ -134,6 +135,7 @@ export default function ElectricityPage() {
                   setAccountNumber("");
                   setCustomerName(null);
                   setAmount(0);
+                  setIsAccountValid(false);
                 }} 
                 className="mb-8"
               />
@@ -146,12 +148,14 @@ export default function ElectricityPage() {
                   setAccountNumber(val);
                   setCustomerName(null);
                 }}
+                serviceType={type === "Prepaid" ? "kplc-prepaid" : "kplc-postpaid"}
+                onValidationChange={setIsAccountValid}
                 onVerify={handleVerifyAccount}
                 verifiedCustomer={customerName}
               />
             </div>
             <div className="flex justify-end">
-              <Button onClick={handleNext} disabled={!customerName} size="lg" className="w-full sm:w-auto">
+              <Button onClick={handleNext} disabled={!isAccountValid} size="lg" className="w-full sm:w-auto">
                 Continue <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>

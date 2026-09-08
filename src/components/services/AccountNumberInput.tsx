@@ -2,14 +2,17 @@ import React, { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
-import { Loader2, CheckCircle2, User, AlertCircle, RefreshCw } from "lucide-react";
+import { Loader2, CheckCircle2, User, AlertCircle, RefreshCw, ShieldCheck } from "lucide-react";
+import { validateServiceAccount } from "@/lib/account-validation";
 
 interface AccountNumberInputProps {
   label?: string;
   placeholder?: string;
   value: string;
   onChange: (val: string) => void;
-  onVerify?: (accountNumber: string) => Promise<{ customerName: string; balance?: number } | null | undefined>;
+  serviceType?: string;
+  onValidationChange?: (isValid: boolean) => void;
+  onVerify?: (accountNumber: string) => Promise<{ customerName?: string | null; balance?: number; valid?: boolean } | null | undefined>;
   verifiedCustomer?: string | null;
   className?: string;
 }
@@ -19,6 +22,8 @@ export function AccountNumberInput({
   placeholder = "Enter account number",
   value,
   onChange,
+  serviceType = "",
+  onValidationChange,
   onVerify,
   verifiedCustomer,
   className,
@@ -28,43 +33,72 @@ export function AccountNumberInput({
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastVerifiedValRef = useRef<string>("");
 
-  const executeVerification = async (accountToVerify: string) => {
-    const clean = accountToVerify.trim();
-    if (!clean || clean.length < 4) {
+  // Validate format and notify parent
+  useEffect(() => {
+    const clean = value.trim();
+    if (!clean) {
+      setError(null);
+      if (onValidationChange) onValidationChange(false);
       return;
     }
 
+    const validation = typeof validateServiceAccount === "function"
+      ? validateServiceAccount(clean, serviceType)
+      : { isValid: clean.length >= 4, error: null, normalized: clean };
+
+    if (onValidationChange) {
+      onValidationChange(validation.isValid);
+    }
+  }, [value, serviceType, onValidationChange]);
+
+  const executeVerification = async (accountToVerify: string) => {
+    const clean = accountToVerify.trim();
+    if (!clean) return;
+
+    // First validate format per service
+    const validation = typeof validateServiceAccount === "function"
+      ? validateServiceAccount(clean, serviceType)
+      : { isValid: clean.length >= 4, error: null, normalized: clean };
+
+    if (!validation.isValid) {
+      setError(validation.error);
+      if (onValidationChange) onValidationChange(false);
+      return;
+    }
+
+    setError(null);
+    if (onValidationChange) onValidationChange(true);
+
     if (onVerify) {
       setIsVerifying(true);
-      setError(null);
       try {
-        const result = await onVerify(clean);
+        const result = await onVerify(validation.normalized);
         if (result && result.customerName) {
-          lastVerifiedValRef.current = clean;
+          lastVerifiedValRef.current = validation.normalized;
           setError(null);
         } else {
-          setError("Account or meter not found. Please check and try again.");
+          // If the biller API does not support account-query lookup (e.g. 404),
+          // do NOT reject the valid account number with a false-negative error!
+          // Format validation already verified the syntax is correct.
+          setError(null);
         }
-      } catch (e: any) {
-        setError(e?.message || "Verification failed. Please check the digits.");
+      } catch {
+        // Non-fatal upstream query failure: format is verified
+        setError(null);
       } finally {
         setIsVerifying(false);
       }
     }
   };
 
-  // Automatic verification on typing with 600ms debounce
+  // Automatic verification on typing with debounce
   useEffect(() => {
     const clean = value.trim();
-
-    // If empty or too short, reset
-    if (clean.length < 4) {
-      setError(null);
+    if (!clean || clean.length < 4) {
       setIsVerifying(false);
       return;
     }
 
-    // Don't re-verify if already verified for this exact value
     if (verifiedCustomer && lastVerifiedValRef.current === clean) {
       return;
     }
@@ -75,14 +109,14 @@ export function AccountNumberInput({
 
     debounceTimerRef.current = setTimeout(() => {
       executeVerification(clean);
-    }, 650);
+    }, 600);
 
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [value, onVerify]);
+  }, [value, serviceType, onVerify]);
 
   const handleManualVerify = () => {
     if (debounceTimerRef.current) {
