@@ -66,6 +66,22 @@ export default async function TransactionsPage({
     });
   }
 
+  // Staleness Alert: Count refund-pending transactions older than 2 hours (configurable threshold)
+  const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+  const { count: overdueRefundCountRaw } = await supabaseService
+    .from('transactions')
+    .select('*', { count: 'exact', head: true })
+    .or('status.eq.VENDING_FAILED_REFUND_PENDING,failure_reason.ilike.%[REFUND_PENDING]%')
+    .lte('created_at', twoHoursAgo);
+
+  const { count: totalRefundCountRaw } = await supabaseService
+    .from('transactions')
+    .select('*', { count: 'exact', head: true })
+    .or('status.eq.VENDING_FAILED_REFUND_PENDING,failure_reason.ilike.%[REFUND_PENDING]%');
+
+  const overdueRefundCount = overdueRefundCountRaw || 0;
+  const totalRefundCount = totalRefundCountRaw || 0;
+
   const failedCount = transactions?.filter(t => t.status === 'VENDING_FAILED' || t.status === 'TIMEOUT').length || 0;
 
   return (
@@ -79,16 +95,59 @@ export default async function TransactionsPage({
           </p>
         </div>
 
-        {failedCount > 0 && status !== 'FAILED' && status !== 'VENDING_FAILED' && (
-          <Link
-            href="/admin/transactions?status=FAILED"
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-semibold hover:bg-red-500/20 transition-all"
-          >
-            <AlertTriangle className="w-3.5 h-3.5" />
-            <span>{failedCount} Failed — Click to Review & Re-Vend</span>
-          </Link>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {overdueRefundCount > 0 && status !== 'REFUND_PENDING' && (
+            <Link
+              href="/admin/transactions?status=REFUND_PENDING"
+              className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 text-xs font-bold hover:bg-red-500/30 transition-all animate-pulse"
+            >
+              <AlertTriangle className="w-3.5 h-3.5" />
+              <span>{overdueRefundCount} Overdue Refund{overdueRefundCount > 1 ? 's' : ''} (&gt;2h)</span>
+            </Link>
+          )}
+
+          {failedCount > 0 && status !== 'FAILED' && status !== 'VENDING_FAILED' && (
+            <Link
+              href="/admin/transactions?status=FAILED"
+              className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-semibold hover:bg-red-500/20 transition-all"
+            >
+              <AlertTriangle className="w-3.5 h-3.5" />
+              <span>{failedCount} Failed — Click to Review & Re-Vend</span>
+            </Link>
+          )}
+        </div>
       </div>
+
+      {/* Staleness Banner: Flags refund-pending transactions older than 2 hours */}
+      {overdueRefundCount > 0 && (
+        <div className="p-4 rounded-2xl bg-red-500/15 border border-red-500/40 text-red-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg shadow-red-500/10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-500/20 border border-red-500/30 flex items-center justify-center text-red-400 shrink-0">
+              <AlertTriangle className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-white tracking-wide">
+                  {overdueRefundCount} Overdue Refund{overdueRefundCount > 1 ? 's' : ''} Require Immediate Attention
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-red-500 text-white">
+                  STALE &gt; 2H
+                </span>
+              </div>
+              <p className="text-xs text-red-300/90 mt-0.5">
+                Customer funds were collected via M-Pesa but vending failed. These orders have sat un-refunded for over 2 hours.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/admin/transactions?status=REFUND_PENDING"
+            className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-colors shrink-0 flex items-center gap-1.5 shadow-md shadow-red-600/30"
+          >
+            <span>Review {overdueRefundCount} Overdue</span>
+            <ArrowRight size={14} />
+          </Link>
+        </div>
+      )}
 
       {/* Quick Status Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
@@ -107,6 +166,23 @@ export default async function TransactionsPage({
           }`}
         >
           Successful
+        </Link>
+        <Link
+          href={`/admin/transactions?status=REFUND_PENDING${search ? `&q=${search}` : ''}`}
+          className={`px-3.5 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1.5 ${
+            status === 'REFUND_PENDING' 
+              ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' 
+              : overdueRefundCount > 0
+              ? 'bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500/25'
+              : 'bg-neutral-900 text-neutral-400 hover:text-white border border-neutral-800'
+          }`}
+        >
+          {overdueRefundCount > 0 ? (
+            <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+          ) : (
+            <Clock className="w-3.5 h-3.5" />
+          )}
+          <span>Refunds Pending {overdueRefundCount > 0 ? `(${overdueRefundCount} Overdue)` : totalRefundCount > 0 ? `(${totalRefundCount})` : ''}</span>
         </Link>
         <Link
           href={`/admin/transactions?status=FAILED${search ? `&q=${search}` : ''}`}
@@ -227,7 +303,7 @@ export default async function TransactionsPage({
                       KES {Number(tx.amount || 0).toLocaleString()}
                     </td>
                     <td className="px-6 py-4 max-w-xs">
-                      <StatusBadge status={tx.status} />
+                      <StatusBadge status={tx.status} createdAt={tx.created_at} />
                       {tx.failure_reason && (
                         <div 
                           className="mt-1 text-[11px] text-red-400/90 font-mono line-clamp-2 leading-tight" 
@@ -306,7 +382,7 @@ export default async function TransactionsPage({
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, createdAt }: { status: string; createdAt?: string }) {
   if (status === 'SUCCESS') {
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -315,9 +391,33 @@ function StatusBadge({ status }: { status: string }) {
     );
   }
   if (status === 'VENDING_FAILED_REFUND_PENDING' || status.includes('REFUND_PENDING')) {
+    let isOverdue = false;
+    let ageStr = '';
+    if (createdAt) {
+      const diffMs = Date.now() - new Date(createdAt).getTime();
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      isOverdue = diffMs >= 2 * 60 * 60 * 1000; // Overdue SLA threshold: 2 hours
+      ageStr = diffHours > 0 ? `${diffHours}h ${diffMins}m` : `${diffMins}m`;
+    }
+
+    if (isOverdue) {
+      return (
+        <span 
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-500/15 text-red-400 border border-red-500/40 animate-pulse"
+          title={`Refund pending for ${ageStr} (exceeds 2-hour SLA)`}
+        >
+          <AlertTriangle size={12} /> OVERDUE REFUND ({ageStr})
+        </span>
+      );
+    }
+
     return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-500/15 text-orange-400 border border-orange-500/30">
-        <Clock size={12} /> REFUND PENDING
+      <span 
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-500/15 text-orange-400 border border-orange-500/30"
+        title={`Refund pending for ${ageStr}`}
+      >
+        <Clock size={12} /> REFUND PENDING ({ageStr || 'Pending'})
       </span>
     );
   }

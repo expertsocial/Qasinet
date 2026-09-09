@@ -39,13 +39,17 @@ describe('Service Availability System & Registry', () => {
     expect(serviceIds).toContain('zuku');
   });
 
-  it('defaults active services including Faiba bundles to enabled without env override', () => {
+  it('defaults active services including Faiba bundles to enabled, and paused electricity to coming_soon without env override', () => {
     delete process.env.NEXT_PUBLIC_SERVICE_STATUS_FAIBA_DATA;
     delete process.env.NEXT_PUBLIC_ENABLE_FAIBA_BUNDLES;
     delete process.env.NEXT_PUBLIC_SERVICE_STATUS_SAFARICOM_AIRTIME;
+    delete process.env.NEXT_PUBLIC_SERVICE_STATUS_KPLC_PREPAID;
 
     expect(getServiceStatus('safaricom-airtime')).toBe('enabled');
-    expect(getServiceStatus('kplc-prepaid')).toBe('enabled');
+    expect(getServiceStatus('kplc-prepaid')).toBe('coming_soon');
+    expect(isServiceEnabled('kplc-prepaid')).toBe(false);
+    expect(getServiceStatus('kplc-postpaid')).toBe('coming_soon');
+    expect(isServiceEnabled('kplc-postpaid')).toBe(false);
     expect(getServiceStatus('nairobi-water')).toBe('enabled');
     expect(getServiceStatus('dstv')).toBe('enabled');
     expect(getServiceStatus('faiba-data')).toBe('enabled');
@@ -145,12 +149,12 @@ describe('Customer-First Transaction Feedback Engine', () => {
     expect(feedback.category).toBe('REFUND_PENDING');
     expect(feedback.severity).toBe('refund');
     expect(feedback.isRefundPending).toBe(true);
-    expect(feedback.headline).toBe('Payment Received — Automatic Refund in Progress');
-    // Must clearly state payment WAS received and money is being refunded
+    expect(feedback.headline).toBe('Payment Received — Refund Under Review');
+    // Must clearly state payment WAS received and money is under refund review
     expect(feedback.context).toContain('Payment of KES 1,600 was received');
     expect(feedback.context).toContain('could not be delivered');
-    expect(feedback.nextStepGuidance).toContain('No action is needed on your end');
-    expect(feedback.nextStepGuidance).toContain('your refund will be returned to your M-Pesa');
+    expect(feedback.nextStepGuidance).toContain("Our team has been notified and will process your refund");
+    expect(feedback.nextStepGuidance).toContain('Please contact support with the reference code below');
     expect(feedback.reference).toBe('QSN-20260908-1002');
     expect(feedback.showSupport).toBe(true);
   });

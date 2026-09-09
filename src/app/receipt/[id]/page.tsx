@@ -301,10 +301,10 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
               </div>
               <div>
                 <p className="text-sm font-semibold text-orange-600 dark:text-orange-400">
-                  Payment Received - Re-vend / Refund Pending
+                  Payment Received — Refund Under Review
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Your M-Pesa payment was received, but utility token vending encountered a temporary provider delay. Our team has been notified for immediate resolution or refund.
+                  Your M-Pesa payment was received, but we couldn&apos;t deliver this service right now. Our team has been notified and will process your refund. Please contact support with your reference code for expedited assistance.
                 </p>
               </div>
             </div>

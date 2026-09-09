@@ -57,6 +57,14 @@ export default async function TransactionDetailPage({ params }: { params: Promis
   const services: any = tx.services;
   const serviceName = services?.name || (Array.isArray(services) && services[0]?.name) || 'Airtime';
 
+  // Staleness calculation for refund-pending transactions
+  const isRefundState = tx.status === 'VENDING_FAILED_REFUND_PENDING' || tx.failure_reason?.includes('[REFUND_PENDING]');
+  const diffMs = Date.now() - new Date(tx.created_at).getTime();
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  const isOverdueRefund = isRefundState && diffMs >= 2 * 60 * 60 * 1000;
+  const refundAgeStr = diffHours > 0 ? `${diffHours}h ${diffMins}m` : `${diffMins}m`;
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
       
@@ -74,7 +82,7 @@ export default async function TransactionDetailPage({ params }: { params: Promis
               <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
                 Transaction Audit
               </h1>
-              <StatusBadge status={tx.status} />
+              <StatusBadge status={tx.status} createdAt={tx.created_at} />
             </div>
             <p className="text-neutral-400 font-mono text-xs mt-0.5">{tx.qsn_reference}</p>
           </div>
@@ -89,6 +97,22 @@ export default async function TransactionDetailPage({ params }: { params: Promis
           hasPaymentRef={!!tx.payment_reference}
         />
       </div>
+
+      {/* OVERDUE REFUND BANNER */}
+      {isOverdueRefund && (
+        <div className="bg-red-500/15 border border-red-500/40 rounded-3xl p-6 shadow-lg shadow-red-500/10">
+          <div className="flex items-center gap-2 mb-2 text-red-400 font-bold text-sm">
+            <AlertTriangle className="w-5 h-5 animate-pulse" />
+            <span>STALE REFUND ALERT (&gt; 2 HOURS OVERDUE)</span>
+          </div>
+          <p className="text-sm text-white font-medium">
+            This transaction has been in refund-pending state for <strong className="text-red-400 font-bold">{refundAgeStr}</strong> without resolution.
+          </p>
+          <p className="text-xs text-neutral-300 mt-1 leading-relaxed">
+            Payment of KES {Number(tx.amount).toLocaleString()} was collected from the customer via M-Pesa ({tx.payment_reference || 'Confirmed'}), but vending failed. Because automated refunds are not active, please issue a manual M-Pesa B2C refund or execute 1-Click Re-Vend immediately.
+          </p>
+        </div>
+      )}
 
       {/* KPLC TOKEN BANNER (If Token Exists) */}
       {token && (
@@ -259,12 +283,45 @@ export default async function TransactionDetailPage({ params }: { params: Promis
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, createdAt }: { status: string; createdAt?: string }) {
   if (status === 'SUCCESS') {
     return (
       <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
         <CheckCircle2 className="w-3.5 h-3.5" />
         SUCCESS
+      </span>
+    );
+  }
+  if (status === 'VENDING_FAILED_REFUND_PENDING' || status.includes('REFUND_PENDING')) {
+    let isOverdue = false;
+    let ageStr = '';
+    if (createdAt) {
+      const diffMs = Date.now() - new Date(createdAt).getTime();
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      isOverdue = diffMs >= 2 * 60 * 60 * 1000;
+      ageStr = diffHours > 0 ? `${diffHours}h ${diffMins}m` : `${diffMins}m`;
+    }
+
+    if (isOverdue) {
+      return (
+        <span 
+          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-500/15 text-red-400 border border-red-500/40 animate-pulse"
+          title={`Refund pending for ${ageStr} (>2h SLA)`}
+        >
+          <AlertTriangle className="w-3.5 h-3.5" />
+          OVERDUE REFUND ({ageStr})
+        </span>
+      );
+    }
+
+    return (
+      <span 
+        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-orange-500/15 text-orange-400 border border-orange-500/30"
+        title={`Refund pending for ${ageStr}`}
+      >
+        <Clock className="w-3.5 h-3.5" />
+        REFUND PENDING ({ageStr || 'Pending'})
       </span>
     );
   }

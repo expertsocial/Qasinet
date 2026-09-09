@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { initTransactionSchema } from '@/lib/validations/transaction';
 import { TransactionOrchestrator } from '@/lib/services/orchestrator';
+import { isServiceEnabled, getServiceById } from '@/lib/services/registry';
 import { QasiNetError } from '@/lib/errors';
 import { MpesaDarajaProvider } from '@/lib/providers/mpesa/provider';
 import { floatService } from '@/lib/services/float';
@@ -44,6 +45,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Validation failed', details: parsed.error.format() }, { status: 400 });
     }
     const { serviceSlug, productId, destination, amount, guestPhone } = parsed.data;
+
+    // 1b. Service Availability Check against Unified Service Registry
+    const regService = getServiceById(serviceSlug);
+    if (regService && regService.status !== 'enabled') {
+      console.warn(`[API] Transaction initiation rejected: service ${serviceSlug} is currently paused/disabled.`);
+      return NextResponse.json({
+        success: false,
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: `${regService.title} is currently undergoing scheduled maintenance or channel configuration. Please check back shortly.`
+        }
+      }, { status: 503 });
+    }
 
     // A real client should pass an idempotency key (e.g. uuid) in headers or body.
     const idempotencyKey = req.headers.get('x-idempotency-key') || `${destination}-${amount}-${Date.now()}`;

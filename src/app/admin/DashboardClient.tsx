@@ -38,6 +38,7 @@ interface DashboardProps {
     successfulCount: number;
     failedCount: number;
     pendingCount: number;
+    overdueRefundCount?: number;
     kyandaBalance: number;
     kyandaEarnings: number;
     kyandaStatus: string;
@@ -140,6 +141,16 @@ export default function DashboardClient({ summary, chartData, serviceData, recen
             <span>Top-Up Float</span>
           </button>
 
+          {summary.overdueRefundCount && summary.overdueRefundCount > 0 && (
+            <Link
+              href="/admin/transactions?status=REFUND_PENDING"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-red-500/20 border border-red-500/40 text-red-400 hover:bg-red-500/30 transition-all animate-pulse shadow-md shadow-red-500/10"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+              <span>{summary.overdueRefundCount} Overdue Refund{summary.overdueRefundCount > 1 ? 's' : ''}</span>
+            </Link>
+          )}
+
           <Link
             href="/admin/transactions?status=VENDING_PENDING"
             className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 transition-all"
@@ -158,6 +169,37 @@ export default function DashboardClient({ summary, chartData, serviceData, recen
           </button>
         </div>
       </div>
+
+      {/* Overdue Refund Staleness Alert Banner */}
+      {summary.overdueRefundCount && summary.overdueRefundCount > 0 && (
+        <div className="bg-red-500/15 border border-red-500/40 text-red-300 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg shadow-red-500/10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-500/20 border border-red-500/30 flex items-center justify-center text-red-400 shrink-0">
+              <AlertTriangle className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-sm text-white">
+                  {summary.overdueRefundCount} Overdue Refund{summary.overdueRefundCount > 1 ? 's' : ''} (&gt; 2 Hours)
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-red-500 text-white">
+                  ACTION REQUIRED
+                </span>
+              </div>
+              <p className="text-xs text-red-300/80 mt-0.5">
+                Paid orders have failed vending and are awaiting manual refund or re-vend.
+              </p>
+            </div>
+          </div>
+          <Link 
+            href="/admin/transactions?status=REFUND_PENDING" 
+            className="text-xs font-bold px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white transition-colors shrink-0 flex items-center gap-1.5 shadow-md shadow-red-600/30"
+          >
+            <span>Review Overdue Refunds</span>
+            <ArrowRight size={14} />
+          </Link>
+        </div>
+      )}
 
       {/* Float & Gateway Alert Banners */}
       {summary.kyandaStatus === 'Disconnected' && (
@@ -438,7 +480,7 @@ export default function DashboardClient({ summary, chartData, serviceData, recen
                       )}
                     </td>
                     <td className="px-6 py-4">
-                      <StatusBadge status={tx.status} />
+                      <StatusBadge status={tx.status} createdAt={tx.created_at} />
                     </td>
                     <td className="px-6 py-4 text-neutral-400 whitespace-nowrap font-mono text-[11px]">
                       {new Date(tx.created_at).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
@@ -472,12 +514,45 @@ export default function DashboardClient({ summary, chartData, serviceData, recen
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, createdAt }: { status: string; createdAt?: string }) {
   if (status === 'SUCCESS') {
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
         <CheckCircle2 className="w-3 h-3" />
         SUCCESS
+      </span>
+    );
+  }
+  if (status === 'VENDING_FAILED_REFUND_PENDING' || status.includes('REFUND_PENDING')) {
+    let isOverdue = false;
+    let ageStr = '';
+    if (createdAt) {
+      const diffMs = Date.now() - new Date(createdAt).getTime();
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      isOverdue = diffMs >= 2 * 60 * 60 * 1000;
+      ageStr = diffHours > 0 ? `${diffHours}h ${diffMins}m` : `${diffMins}m`;
+    }
+
+    if (isOverdue) {
+      return (
+        <span 
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-red-500/15 text-red-400 border border-red-500/40 animate-pulse"
+          title={`Refund pending for ${ageStr} (>2h)`}
+        >
+          <AlertTriangle className="w-3 h-3" />
+          OVERDUE ({ageStr})
+        </span>
+      );
+    }
+
+    return (
+      <span 
+        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-orange-500/15 text-orange-400 border border-orange-500/30"
+        title={`Refund pending for ${ageStr}`}
+      >
+        <Clock className="w-3 h-3" />
+        REFUND PENDING
       </span>
     );
   }

@@ -1,7 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { QasiNetError } from '../errors';
 import { sendReceiptEmail } from './email';
-import { isServiceEnabled } from './registry';
+import { isServiceEnabled, getServiceById } from './registry';
 
 export type TransactionStatus =
   | 'CREATED'
@@ -73,7 +73,7 @@ export class TransactionOrchestrator {
 
     const { data: service, error: serviceError } = await this.supabase
       .from('services')
-      .select('id, type, slug, provider_id, pricing(*)')
+      .select('id, name, type, slug, provider_id, pricing(*)')
       .eq('slug', params.serviceSlug)
       .eq('is_active', true)
       .single();
@@ -90,6 +90,22 @@ export class TransactionOrchestrator {
       if (!isServiceEnabled('faiba-data')) {
         throw new QasiNetError('SERVICE_UNAVAILABLE', 'Faiba data bundle vending is temporarily paused pending upstream provider activation. Please purchase Faiba Airtime instead.');
       }
+    }
+
+    // Enforce electricity token vending pause
+    if (service.type === 'electricity' || service.slug === 'kplc-prepaid' || service.slug === 'kplc-postpaid') {
+      if (!isServiceEnabled('kplc-prepaid') && !isServiceEnabled('kplc-postpaid')) {
+        throw new QasiNetError('SERVICE_UNAVAILABLE', 'Kenya Power electricity token vending is temporarily paused pending gateway channel configuration. Purchases are suspended to protect customer funds.');
+      }
+      if (!isServiceEnabled(service.slug)) {
+        throw new QasiNetError('SERVICE_UNAVAILABLE', `${service.name || 'Electricity'} vending is currently paused for maintenance.`);
+      }
+    }
+
+    // Enforce service availability for registered services in registry
+    const regService = getServiceById(params.serviceSlug);
+    if (regService && regService.status !== 'enabled') {
+      throw new QasiNetError('SERVICE_UNAVAILABLE', `${regService.title} is currently unavailable or undergoing maintenance.`);
     }
 
     let pricingRule = service.pricing?.[0];

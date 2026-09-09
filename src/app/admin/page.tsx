@@ -23,6 +23,14 @@ export default async function AdminDashboard() {
   const failedCount = todayTxs?.filter(tx => tx.status === 'PAYMENT_FAILED' || tx.status === 'VENDING_FAILED').length || 0;
   const pendingCount = (todayTxs?.length || 0) - successfulCount - failedCount;
 
+  // Staleness Alert: Overdue refund-pending transactions (> 2h threshold)
+  const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+  const { count: overdueRefundCount } = await supabase
+    .from('transactions')
+    .select('*', { count: 'exact', head: true })
+    .or('status.eq.VENDING_FAILED_REFUND_PENDING,failure_reason.ilike.%[REFUND_PENDING]%')
+    .lte('created_at', twoHoursAgo);
+
   // Total Transactions (All time)
   const { count: totalTransactions } = await supabase
     .from('transactions')
@@ -92,6 +100,7 @@ export default async function AdminDashboard() {
         successfulCount,
         failedCount,
         pendingCount,
+        overdueRefundCount: overdueRefundCount || 0,
         kyandaBalance,
         kyandaEarnings,
         kyandaStatus

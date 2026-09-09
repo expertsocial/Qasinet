@@ -8,10 +8,11 @@ import { AmountSelector } from "@/components/services/AmountSelector";
 import { UnifiedCheckout } from "@/components/checkout/UnifiedCheckout";
 import { OrderPayload } from "@/lib/payment";
 import { Button, buttonVariants } from "@/components/ui/Button";
-import { ArrowLeft, ArrowRight, Zap } from "lucide-react";
+import { ArrowLeft, ArrowRight, Zap, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { isValidKenyanPhone } from "@/lib/validation";
+import { isServiceEnabled } from "@/lib/services/registry";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -80,7 +81,11 @@ export default function ElectricityPage() {
     }
   };
 
-  const isStep2Valid = isPhoneValid && amount >= 50;
+  const isPrepaidEnabled = isServiceEnabled("kplc-prepaid");
+  const isPostpaidEnabled = isServiceEnabled("kplc-postpaid");
+  const isCurrentEnabled = type === "Prepaid" ? isPrepaidEnabled : isPostpaidEnabled;
+
+  const isStep2Valid = isPhoneValid && amount >= 50 && isCurrentEnabled;
 
   return (
     <main className="min-h-screen bg-background pt-24 pb-16">
@@ -127,6 +132,18 @@ export default function ElectricityPage() {
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="bg-card border border-border/50 rounded-3xl p-6 md:p-8 shadow-sm">
               <h2 className="text-xl font-semibold mb-6">Account Details</h2>
+
+              {!isCurrentEnabled && (
+                <div className="p-4 mb-6 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-sm text-amber-400">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span>Electricity Vending Temporarily Paused</span>
+                  </div>
+                  <p className="text-neutral-300 leading-relaxed">
+                    Kenya Power electricity token vending is temporarily paused pending gateway channel configuration. Purchases are suspended to protect customer funds. Please check back shortly.
+                  </p>
+                </div>
+              )}
               
               <UtilityTypeSelector 
                 value={type} 
@@ -155,8 +172,13 @@ export default function ElectricityPage() {
               />
             </div>
             <div className="flex justify-end">
-              <Button onClick={handleNext} disabled={!isAccountValid} size="lg" className="w-full sm:w-auto">
-                Continue <ArrowRight className="w-4 h-4 ml-2" />
+              <Button 
+                onClick={handleNext} 
+                disabled={!isAccountValid || !isCurrentEnabled} 
+                size="lg" 
+                className="w-full sm:w-auto"
+              >
+                {!isCurrentEnabled ? "Checkout Paused (Maintenance)" : <>Continue <ArrowRight className="w-4 h-4 ml-2" /></>}
               </Button>
             </div>
           </div>
@@ -198,10 +220,10 @@ export default function ElectricityPage() {
               </Button>
               <Button 
                 onClick={handleNext} 
-                disabled={!isStep2Valid || !isValidKenyanPhone(phone)} 
+                disabled={!isStep2Valid || !isValidKenyanPhone(phone) || !isCurrentEnabled} 
                 size="lg"
               >
-                Continue <ArrowRight className="w-4 h-4 ml-2" />
+                {!isCurrentEnabled ? "Checkout Paused (Maintenance)" : <>Continue <ArrowRight className="w-4 h-4 ml-2" /></>}
               </Button>
             </div>
           </div>
@@ -209,10 +231,27 @@ export default function ElectricityPage() {
 
         {/* Step 3 & 4: Checkout & Status */}
         {step >= 3 && (
-          <UnifiedCheckout 
-            order={orderPayload}
-            onEditDetails={handleBack}
-          />
+          !isCurrentEnabled ? (
+            <div className="bg-card border border-border/50 rounded-3xl p-8 text-center space-y-4 animate-in fade-in duration-500">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center mx-auto">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <h2 className="text-xl font-bold">Electricity Checkout Paused</h2>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                Kenya Power token vending is currently paused pending gateway channel configuration. No payments can be initiated at this time.
+              </p>
+              <Link href="/services">
+                <Button variant="outline" className="mt-2">
+                  Back to Services
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            <UnifiedCheckout 
+              order={orderPayload}
+              onEditDetails={handleBack}
+            />
+          )
         )}
 
       </div>

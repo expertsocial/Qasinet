@@ -343,7 +343,7 @@ function TrackTransactionContent() {
                     ? "bg-red-500/10 text-red-500 border-red-500/20" 
                     : "bg-blue-500/10 text-blue-500 border-blue-500/20"
                 }`}>
-                  {isDelivered ? "DELIVERED" : isRefundPending ? "REFUND IN PROGRESS" : isFailed ? "ACTION NEEDED" : "PROCESSING"}
+                  {isDelivered ? "DELIVERED" : isRefundPending ? "REFUND UNDER REVIEW" : isFailed ? "ACTION NEEDED" : "PROCESSING"}
                 </span>
               </div>
             </div>
@@ -497,7 +497,7 @@ function TrackTransactionContent() {
                 <div className="pt-1 flex-1">
                   <div className="flex justify-between items-baseline">
                     <h3 className="text-sm font-bold text-foreground">
-                      {isRefundPending ? "4. Automatic Refund in Progress" : "4. Delivery & Final Receipt"}
+                      {isRefundPending ? "4. Refund Under Review" : "4. Delivery & Final Receipt"}
                     </h3>
                     {isDelivered ? (
                       <span className="text-[11px] font-semibold text-green-500">

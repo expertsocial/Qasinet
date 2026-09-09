@@ -169,6 +169,12 @@ export default async function MpesaReconciliationPage({
   const totalAmountOnPage = (transactions || []).reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
   const successCountOnPage = (transactions || []).filter((t: any) => t.status === 'SUCCESS' || t.status === 'COMPLETED').length;
   const refundCountOnPage = (transactions || []).filter((t: any) => t.status === 'VENDING_FAILED_REFUND_PENDING' || t.failure_reason?.includes('[REFUND_PENDING]')).length;
+  const overdueRefundCountOnPage = (transactions || []).filter((t: any) => {
+    const isRef = t.status === 'VENDING_FAILED_REFUND_PENDING' || t.failure_reason?.includes('[REFUND_PENDING]');
+    if (!isRef) return false;
+    const diffMs = Date.now() - new Date(t.created_at).getTime();
+    return diffMs >= 2 * 60 * 60 * 1000; // 2h staleness SLA
+  }).length;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -233,8 +239,15 @@ export default async function MpesaReconciliationPage({
 
         <div className="bg-neutral-950 border border-neutral-800/80 rounded-xl p-4">
           <div className="text-xs font-medium text-neutral-400 uppercase tracking-wider">Refund / Exceptions</div>
-          <div className="text-2xl font-bold text-amber-400 mt-1.5 font-mono">
-            {refundCountOnPage}
+          <div className="flex items-baseline gap-2 mt-1.5">
+            <span className="text-2xl font-bold text-amber-400 font-mono">
+              {refundCountOnPage}
+            </span>
+            {overdueRefundCountOnPage > 0 && (
+              <span className="text-[11px] font-bold text-red-400 bg-red-500/15 border border-red-500/30 px-2 py-0.5 rounded-full animate-pulse">
+                {overdueRefundCountOnPage} OVERDUE (&gt;2h)
+              </span>
+            )}
           </div>
           <div className="text-[11px] text-neutral-500 mt-1">
             Paid on M-Pesa, awaiting re-vend/refund
@@ -432,7 +445,7 @@ export default async function MpesaReconciliationPage({
 
                     {/* 6. Order / Transaction Status */}
                     <td className="px-5 py-4 max-w-xs">
-                      <StatusBadge status={tx.status} />
+                      <StatusBadge status={tx.status} createdAt={tx.created_at} />
                       {tx.failure_reason && (
                         <div 
                           className="mt-1 text-[11px] text-red-400/90 font-mono line-clamp-1 leading-tight" 
@@ -549,7 +562,7 @@ function ServiceTypeBadge({ type }: { type: string }) {
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, createdAt }: { status: string; createdAt?: string }) {
   if (status === 'SUCCESS' || status === 'COMPLETED') {
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -558,9 +571,33 @@ function StatusBadge({ status }: { status: string }) {
     );
   }
   if (status === 'VENDING_FAILED_REFUND_PENDING' || status.includes('REFUND_PENDING')) {
+    let isOverdue = false;
+    let ageStr = '';
+    if (createdAt) {
+      const diffMs = Date.now() - new Date(createdAt).getTime();
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      isOverdue = diffMs >= 2 * 60 * 60 * 1000;
+      ageStr = diffHours > 0 ? `${diffHours}h ${diffMins}m` : `${diffMins}m`;
+    }
+
+    if (isOverdue) {
+      return (
+        <span 
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-500/15 text-red-400 border border-red-500/40 animate-pulse"
+          title={`Refund pending for ${ageStr} (>2h SLA)`}
+        >
+          <Clock size={12} /> OVERDUE REFUND ({ageStr})
+        </span>
+      );
+    }
+
     return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-500/15 text-orange-400 border border-orange-500/30">
-        <Clock size={12} /> REFUND PENDING
+      <span 
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-500/15 text-orange-400 border border-orange-500/30"
+        title={`Refund pending for ${ageStr}`}
+      >
+        <Clock size={12} /> REFUND PENDING ({ageStr || 'Pending'})
       </span>
     );
   }

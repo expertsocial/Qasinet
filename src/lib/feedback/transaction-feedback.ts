@@ -85,10 +85,10 @@ function resolveFeedback({
     return {
       category: 'REFUND_PENDING',
       severity: 'refund',
-      headline: 'Payment Received — Automatic Refund in Progress',
+      headline: 'Payment Received — Refund Under Review',
       context: `${amountStr}${serviceName}, but the utility could not be delivered by the provider at this time.`,
-      nextStepGuidance: 'Your funds are completely safe. No action is needed on your end — your refund will be returned to your M-Pesa account automatically within 2 to 4 hours. You can quote your reference below with support if you have questions.',
-      badgeLabel: 'Refund In Progress',
+      nextStepGuidance: "Your payment was received, but we couldn't deliver this service right now. Our team has been notified and will process your refund. Please contact support with the reference code below so we can resolve this as quickly as possible.",
+      badgeLabel: 'Refund Under Review',
       showRetry: false,
       showSupport: true,
       isRefundPending: true,
