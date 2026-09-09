@@ -3,13 +3,13 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area, PieChart, Pie, Cell 
 } from 'recharts';
 import { 
   Wallet, Activity, CheckCircle2, XCircle, Clock, AlertTriangle, 
-  TrendingUp, ArrowUpRight, RefreshCw, ShieldCheck, Zap, 
-  ExternalLink, ChevronRight, Layers, ArrowRight, Filter
+  TrendingUp, RefreshCw, Zap, 
+  ChevronRight, ArrowRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -27,7 +27,7 @@ interface TransactionItem {
   created_at: string;
   payment_reference?: string;
   kyanda_reference?: string;
-  services?: any;
+  services?: { name?: string } | { name?: string }[] | null;
 }
 
 interface DashboardProps {
@@ -55,6 +55,16 @@ export default function DashboardClient({ summary, chartData, serviceData, recen
   const [autoRefreshSecs, setAutoRefreshSecs] = useState<number>(30); // 30s default
   const [secondsRemaining, setSecondsRemaining] = useState<number>(30);
   const [isTopUpOpen, setIsTopUpOpen] = useState(false);
+
+  // Subscribe to current time cleanly without impure render or cascading setState
+  const currentTime = React.useSyncExternalStore(
+    (callback) => {
+      const interval = setInterval(callback, 10000);
+      return () => clearInterval(interval);
+    },
+    () => Date.now(),
+    () => null
+  );
 
   // Auto-refresh countdown
   React.useEffect(() => {
@@ -239,7 +249,7 @@ export default function DashboardClient({ summary, chartData, serviceData, recen
         <div className="relative overflow-hidden bg-neutral-950 border border-neutral-800/80 rounded-2xl p-5 shadow-sm group hover:border-neutral-700 transition-all">
           <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-colors" />
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Today's Sales</span>
+            <span className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Today&apos;s Sales</span>
             <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
               <Wallet className="w-4 h-4" />
             </div>
@@ -257,7 +267,7 @@ export default function DashboardClient({ summary, chartData, serviceData, recen
         <div className="relative overflow-hidden bg-neutral-950 border border-neutral-800/80 rounded-2xl p-5 shadow-sm group hover:border-neutral-700 transition-all">
           <div className="absolute top-0 right-0 w-24 h-24 bg-teal-500/5 rounded-full blur-2xl group-hover:bg-teal-500/10 transition-colors" />
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Today's Profit</span>
+            <span className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Today&apos;s Profit</span>
             <div className="p-2 rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20">
               <TrendingUp className="w-4 h-4" />
             </div>
@@ -450,8 +460,8 @@ export default function DashboardClient({ summary, chartData, serviceData, recen
             </thead>
             <tbody className="divide-y divide-neutral-800/60">
               {recentTransactions.map((tx) => {
-                const services: any = tx.services;
-                const serviceName = services?.name || (Array.isArray(services) && services[0]?.name) || 'Airtime';
+                const services = tx.services;
+                const serviceName = (Array.isArray(services) ? services[0]?.name : services?.name) || 'Airtime';
                 
                 return (
                   <tr key={tx.id} className="hover:bg-neutral-900/40 transition-colors group">
@@ -480,7 +490,7 @@ export default function DashboardClient({ summary, chartData, serviceData, recen
                       )}
                     </td>
                     <td className="px-6 py-4">
-                      <StatusBadge status={tx.status} createdAt={tx.created_at} />
+                      <StatusBadge status={tx.status} createdAt={tx.created_at} now={currentTime} />
                     </td>
                     <td className="px-6 py-4 text-neutral-400 whitespace-nowrap font-mono text-[11px]">
                       {new Date(tx.created_at).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
@@ -514,7 +524,7 @@ export default function DashboardClient({ summary, chartData, serviceData, recen
   );
 }
 
-function StatusBadge({ status, createdAt }: { status: string; createdAt?: string }) {
+function StatusBadge({ status, createdAt, now }: { status: string; createdAt?: string; now?: number | null }) {
   if (status === 'SUCCESS') {
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -526,8 +536,8 @@ function StatusBadge({ status, createdAt }: { status: string; createdAt?: string
   if (status === 'VENDING_FAILED_REFUND_PENDING' || status.includes('REFUND_PENDING')) {
     let isOverdue = false;
     let ageStr = '';
-    if (createdAt) {
-      const diffMs = Date.now() - new Date(createdAt).getTime();
+    if (createdAt && now) {
+      const diffMs = now - new Date(createdAt).getTime();
       const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
       const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
       isOverdue = diffMs >= 2 * 60 * 60 * 1000;
@@ -549,7 +559,7 @@ function StatusBadge({ status, createdAt }: { status: string; createdAt?: string
     return (
       <span 
         className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-orange-500/15 text-orange-400 border border-orange-500/30"
-        title={`Refund pending for ${ageStr}`}
+        title={ageStr ? `Refund pending for ${ageStr}` : 'Refund pending'}
       >
         <Clock className="w-3 h-3" />
         REFUND PENDING
