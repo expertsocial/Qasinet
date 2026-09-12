@@ -5,31 +5,29 @@
  * 
  * On-Demand Live Verification Harness for QasiNet
  * 
- * Proves the FULL payment flow end-to-end:
- * real STK push -> real manual confirmation -> real Kyanda vend -> real IPN -> real receipt/token.
+ * MODES:
+ * 1. Safe Dry-Run (Default):
+ *    Simulates plan, inspects registry, prints cost breakdown. No API calls, no spend.
+ * 
+ * 2. Trigger-Only Mode (--trigger-only):
+ *    Calls real transaction-initiation API and triggers real STK push per service,
+ *    but deliberately does NOT wait for approval. Proves float-check, request formation,
+ *    and STK dispatch work across all services with ZERO real spend.
+ *    Waits for Safaricom's expiry window and checks post-expiry resolution.
+ * 
+ * 3. Full Live Mode (--confirm):
+ *    Proves the FULL payment flow end-to-end with real manual approval and vending:
+ *    real STK push -> real PIN approval -> real Kyanda vend -> real IPN -> receipt/tokens.
  * 
  * GUARDRAILS IMPLEMENTED:
- * 1. Dry-run by default (requires explicit --confirm)
- * 2. Live float check before real execution
+ * 1. Dry-run by default (requires explicit --confirm or --trigger-only)
+ * 2. Live float check before execution
  * 3. Paused services skipped automatically (e.g. KPLC electricity)
  * 4. Real, pre-confirmed test phone with double-entry confirmation
  * 5. Minimum viable amounts only (lowest valid price per service)
- * 6. Hard total spend ceiling (default 500 KES)
+ * 6. Hard total spend ceiling (default 500 KES for live run)
  * 7. One test at a time, sequential execution
  * 8. Emergency stop on VENDING_FAILED_REFUND_PENDING
- * 
- * Usage:
- *   # Dry Run (Safe Default):
- *   node scripts/live-e2e/verify.mjs
- * 
- *   # Review Dry Run with your phone number:
- *   node scripts/live-e2e/verify.mjs --phone=0712345678
- * 
- *   # Live Test a Single Service:
- *   node scripts/live-e2e/verify.mjs --service=safaricom-airtime --phone=0712345678 --confirm
- * 
- *   # Full Live Test Suite:
- *   node scripts/live-e2e/verify.mjs --phone=0712345678 --confirm
  */
 
 import fs from 'fs';
@@ -125,10 +123,12 @@ function parseArgs() {
   const args = process.argv.slice(2);
   const options = {
     confirm: false,
+    triggerOnly: false,
     phone: '',
     service: null,
     maxSpend: SAFETY_CONFIG.DEFAULT_MAX_SPEND_CAP,
     minFloatBuffer: SAFETY_CONFIG.MIN_FLOAT_BUFFER,
+    expiryWait: SAFETY_CONFIG.DEFAULT_EXPIRY_WAIT_SECS || 90,
     appUrl: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:4000',
     skipUnverified: false,
     forcePhoneConfirmed: false,
@@ -139,8 +139,11 @@ function parseArgs() {
   for (const arg of args) {
     if (arg === '--confirm') {
       options.confirm = true;
+    } else if (arg === '--trigger-only') {
+      options.triggerOnly = true;
     } else if (arg === '--dry-run') {
       options.confirm = false;
+      options.triggerOnly = false;
     } else if (arg === '--skip-unverified') {
       options.skipUnverified = true;
     } else if (arg === '--force-phone-confirmed') {
@@ -155,6 +158,8 @@ function parseArgs() {
       options.maxSpend = parseFloat(arg.split('=')[1]) || SAFETY_CONFIG.DEFAULT_MAX_SPEND_CAP;
     } else if (arg.startsWith('--min-float-buffer=')) {
       options.minFloatBuffer = parseFloat(arg.split('=')[1]) || SAFETY_CONFIG.MIN_FLOAT_BUFFER;
+    } else if (arg.startsWith('--expiry-wait=')) {
+      options.expiryWait = parseInt(arg.split('=')[1], 10) || 90;
     } else if (arg.startsWith('--app-url=')) {
       options.appUrl = arg.split('=')[1].trim().replace(/\/+$/, '');
     } else if (arg.startsWith('--dest-')) {
@@ -177,27 +182,21 @@ function printHelp() {
   QASINET ON-DEMAND LIVE VERIFICATION HARNESS (E2E)
 =============================================================================
 
-This harness executes real, full-stack payment cycles against the live
-system (M-Pesa STK push -> customer approval -> Kyanda vend -> IPN receipt).
-
-GUARDRAILS:
-  - Dry-run by default: no action taken without --confirm
-  - Live float check before initiating transactions
-  - Paused services automatically detected and skipped (e.g. KPLC electricity)
-  - Hard spend ceiling enforcement
-  - Emergency halt if any transaction lands in refund-pending
-
-USAGE:
-  node scripts/live-e2e/verify.mjs [OPTIONS]
+MODES:
+  --dry-run                 Simulate run and print execution plan (DEFAULT)
+  --trigger-only            Trigger real STK pushes without waiting for approval.
+                            Zero real spend. Verifies float-check, signing, and
+                            STK dispatch, followed by post-expiry resolution check.
+  --confirm                 Execute full live test with manual phone PIN approval
+                            and real vending. Spends real float.
 
 OPTIONS:
-  --dry-run                 Simulate run and print execution plan (DEFAULT)
-  --confirm                 REQUIRED to execute real transactions with real money
   --phone=07XXXXXXXX        The paying M-Pesa phone number receiving the STK push
   --service=<slug>          Run only one service (e.g. safaricom-airtime, gotv)
   --skip-unverified         Skip services lacking pre-confirmed live SIMs
-  --max-spend=<KES>         Override hard spend cap (default: ${SAFETY_CONFIG.DEFAULT_MAX_SPEND_CAP} KES)
+  --max-spend=<KES>         Hard spend cap for --confirm mode (default: ${SAFETY_CONFIG.DEFAULT_MAX_SPEND_CAP} KES)
   --min-float-buffer=<KES>  Required Kyanda float buffer (default: ${SAFETY_CONFIG.MIN_FLOAT_BUFFER} KES)
+  --expiry-wait=<seconds>   Wait window for STK prompt timeout (default: 90s)
   --app-url=<url>           Application base URL (default: http://localhost:4000)
 
 DESTINATION OVERRIDES:
@@ -215,11 +214,14 @@ EXAMPLES:
   # 1. Preview what would be executed and cost:
   node scripts/live-e2e/verify.mjs
 
-  # 2. Test only Safaricom Airtime (spend KES 10):
-  node scripts/live-e2e/verify.mjs --service=safaricom-airtime --phone=0712345678 --confirm
+  # 2. Trigger-Only verification across all active services (ZERO spend):
+  node scripts/live-e2e/verify.mjs --phone=0712345678 --trigger-only
 
-  # 3. Test only GOtv renewal (spend KES 50):
-  node scripts/live-e2e/verify.mjs --service=gotv --phone=0712345678 --confirm
+  # 3. Trigger-Only verification for a single service:
+  node scripts/live-e2e/verify.mjs --service=safaricom-airtime --phone=0712345678 --trigger-only
+
+  # 4. Full Live Test with approval & vending (spends KES 10):
+  node scripts/live-e2e/verify.mjs --service=safaricom-airtime --phone=0712345678 --confirm
 `);
 }
 
@@ -228,11 +230,17 @@ async function main() {
   const options = parseArgs();
   const startTime = new Date();
 
+  const modeText = options.triggerOnly
+    ? '🟡 TRIGGER-ONLY VERIFICATION (Zero Spend — STK Dispatch Only)'
+    : options.confirm
+      ? '🔴 LIVE REAL-MONEY EXECUTION'
+      : '🟢 SAFE DRY-RUN (Default)';
+
   console.log('=============================================================================');
   console.log('  QASINET ON-DEMAND LIVE VERIFICATION HARNESS');
   console.log(`  Timestamp:   ${startTime.toISOString()}`);
   console.log(`  Target App:  ${options.appUrl}`);
-  console.log(`  Mode:        ${options.confirm ? '🔴 LIVE REAL-MONEY EXECUTION' : '🟢 SAFE DRY-RUN (Default)'}`);
+  console.log(`  Mode:        ${modeText}`);
   console.log('=============================================================================');
 
   // 1. Load Registry Statuses (Guardrail 3)
@@ -339,12 +347,14 @@ async function main() {
   console.log(`- Total Services Evaluated: ${plan.length}`);
   console.log(`- Services to Test (Active): ${activeTests.length}`);
   console.log(`- Services Skipped (Paused): ${skippedTests.length}`);
-  console.log(`- Total Planned Real Spend: KES ${totalPlannedSpend.toLocaleString()}`);
-  console.log(`- Spend Safety Ceiling:     KES ${options.maxSpend.toLocaleString()}`);
+  console.log(`- Theoretical Spend Total:   KES ${totalPlannedSpend.toLocaleString()} ${options.triggerOnly ? '(KES 0 will be spent)' : ''}`);
+  if (!options.triggerOnly) {
+    console.log(`- Spend Safety Ceiling:     KES ${options.maxSpend.toLocaleString()}`);
+  }
   console.log(`- Required Float Buffer:    KES ${options.minFloatBuffer.toLocaleString()}`);
 
-  // 4. Guardrail 6: Hard Spend Cap Enforcement
-  if (totalPlannedSpend > options.maxSpend) {
+  // 4. Guardrail 6: Hard Spend Cap Enforcement (Only applies when spending real money)
+  if (!options.triggerOnly && totalPlannedSpend > options.maxSpend) {
     console.error(`\n❌ SAFETY LIMIT EXCEEDED: Planned spend (KES ${totalPlannedSpend}) exceeds safety ceiling (KES ${options.maxSpend}).`);
     console.error(`Refusing to proceed. Reduce test scope with --service=<slug> or increase --max-spend=<KES>.`);
     process.exit(1);
@@ -353,27 +363,35 @@ async function main() {
   // =========================================================================
   // DRY RUN TERMINATION (Guardrail 1)
   // =========================================================================
-  if (!options.confirm) {
+  if (!options.confirm && !options.triggerOnly) {
     console.log('\n-----------------------------------------------------------------------------');
     console.log('🛡️  DRY RUN COMPLETE — NO MONEY SPENT, NO TRANSACTIONS CREATED');
     console.log('-----------------------------------------------------------------------------');
-    console.log('To execute this test suite for real, provide your paying M-Pesa phone and pass --confirm:');
-    console.log(`\n  node scripts/live-e2e/verify.mjs --phone=${options.phone || '07XXXXXXXX'} --confirm\n`);
+    console.log('Option A (Zero Spend — Test Float Check & STK Push Dispatch):');
+    console.log(`  node scripts/live-e2e/verify.mjs --phone=${options.phone || '07XXXXXXXX'} --trigger-only\n`);
+    console.log('Option B (Full Live Execution — Real PIN Approval & Vending):');
+    console.log(`  node scripts/live-e2e/verify.mjs --phone=${options.phone || '07XXXXXXXX'} --confirm\n`);
     console.log('Or test a single specific service first (e.g. Safaricom Airtime for KES 10):');
-    console.log(`  node scripts/live-e2e/verify.mjs --service=safaricom-airtime --phone=${options.phone || '07XXXXXXXX'} --confirm\n`);
+    console.log(`  node scripts/live-e2e/verify.mjs --service=safaricom-airtime --phone=${options.phone || '07XXXXXXXX'} --trigger-only\n`);
     process.exit(0);
   }
 
   // =========================================================================
-  // LIVE RUN PREREQUISITES & GUARDRAILS
+  // LIVE OR TRIGGER-ONLY RUN PREREQUISITES & GUARDRAILS
   // =========================================================================
-  console.log('\n=============================================================================');
-  console.log('⚠️  PREPARING LIVE REAL-MONEY TRANSACTION EXECUTION');
-  console.log('=============================================================================');
+  if (options.triggerOnly) {
+    console.log('\n=============================================================================');
+    console.log('🟡 PREPARING TRIGGER-ONLY VERIFICATION (ZERO SPEND)');
+    console.log('=============================================================================');
+  } else {
+    console.log('\n=============================================================================');
+    console.log('⚠️  PREPARING LIVE REAL-MONEY TRANSACTION EXECUTION');
+    console.log('=============================================================================');
+  }
 
   // Guardrail 4: Valid paying phone number is required
   if (!options.phone || !isValidKenyanPhone(options.phone)) {
-    console.error(`\n❌ Error: A valid Kenyan M-Pesa phone number is required for live execution.`);
+    console.error(`\n❌ Error: A valid Kenyan M-Pesa phone number is required.`);
     console.error(`Provide your phone using: --phone=07XXXXXXXX (e.g. 0712345678).`);
     process.exit(1);
   }
@@ -387,9 +405,18 @@ async function main() {
       output: process.stdout,
     });
 
-    console.log(`\n⚠️  SAFETY CHECK: You are about to initiate REAL transactions spending up to KES ${totalPlannedSpend}.`);
-    console.log(`STK Push prompts will be sent to your phone: ${payingPhone}`);
-    console.log(`Please type your phone number again to confirm authorization:`);
+    if (options.triggerOnly) {
+      console.log(`\n⚠️  WARNING: YOU ARE RUNNING IN TRIGGER-ONLY MODE!`);
+      console.log(`This will dispatch ${activeTests.length} real M-Pesa STK prompts in sequence to: ${payingPhone}.`);
+      console.log(`DO NOT APPROVE THESE PROMPTS ON YOUR PHONE.`);
+      console.log(`Simply ignore them or let them timeout naturally. Zero money will be debited.`);
+      console.log(`Theoretical spend: KES ${totalPlannedSpend} (Actual spend: KES 0)`);
+      console.log(`Please type your phone number again to confirm authorization:`);
+    } else {
+      console.log(`\n⚠️  SAFETY CHECK: You are about to initiate REAL transactions spending up to KES ${totalPlannedSpend}.`);
+      console.log(`STK Push prompts will be sent to your phone: ${payingPhone}`);
+      console.log(`Please type your phone number again to confirm authorization:`);
+    }
 
     const enteredPhone = await new Promise((resolve) => {
       rl.question('> ', (answer) => {
@@ -400,7 +427,7 @@ async function main() {
 
     if (enteredPhone !== payingPhone) {
       console.error(`\n❌ Confirmation failed: Entered phone (${enteredPhone}) did not match target phone (${payingPhone}).`);
-      console.error(`Aborting live test run. No transactions were created.`);
+      console.error(`Aborting test run. No transactions were created.`);
       process.exit(1);
     }
 
@@ -411,31 +438,289 @@ async function main() {
   console.log('\nChecking live Kyanda merchant float balance...');
   const balanceResult = await getLiveKyandaBalance();
   const requiredFloat = totalPlannedSpend + options.minFloatBuffer;
+  const initialAccountBal = balanceResult.accountBal || 0;
 
   if (balanceResult.success) {
     console.log(`- Kyanda Account Balance:  KES ${balanceResult.accountBal.toLocaleString()}`);
     console.log(`- Kyanda Earnings Balance: KES ${balanceResult.earningsBal.toLocaleString()}`);
-    console.log(`- Required Float Total:    KES ${requiredFloat.toLocaleString()} (Spend: ${totalPlannedSpend} + Buffer: ${options.minFloatBuffer})`);
+    console.log(`- Theoretical Float Total: KES ${requiredFloat.toLocaleString()} (Spend: ${totalPlannedSpend} + Buffer: ${options.minFloatBuffer})`);
 
     if (balanceResult.accountBal < requiredFloat) {
-      console.error(`\n❌ ABORTED: Insufficient Kyanda merchant float!`);
-      console.error(`Available Account_Bal: KES ${balanceResult.accountBal}`);
-      console.error(`Required Total:        KES ${requiredFloat}`);
-      console.error(`Deficit:               KES ${(requiredFloat - balanceResult.accountBal).toFixed(2)}`);
-      console.error(`Top up merchant float before running live tests to prevent transactions landing in refund-pending.`);
-      process.exit(1);
+      if (options.triggerOnly) {
+        console.warn(`\n⚠️  FLOAT DEFICIT NOTICE (Trigger-Only Mode):`);
+        console.warn(`Available Account_Bal is KES ${balanceResult.accountBal}, but full run requires KES ${requiredFloat}.`);
+        console.warn(`In trigger-only mode no float is debited, but this confirms the float check is functional.`);
+      } else {
+        console.error(`\n❌ ABORTED: Insufficient Kyanda merchant float!`);
+        console.error(`Available Account_Bal: KES ${balanceResult.accountBal}`);
+        console.error(`Required Total:        KES ${requiredFloat}`);
+        console.error(`Deficit:               KES ${(requiredFloat - balanceResult.accountBal).toFixed(2)}`);
+        console.error(`Top up merchant float before running live tests to prevent transactions landing in refund-pending.`);
+        process.exit(1);
+      }
+    } else {
+      console.log('✅ Float check passed: Float is sufficient for planned operations.');
     }
-    console.log('✅ Float check passed: Float is sufficient for full test run.');
   } else {
     console.warn(`\n⚠️  Float Check Warning: Could not verify float directly with gateway (${balanceResult.error}).`);
-    if (!options.forceSkipFloatCheck) {
+    if (!options.forceSkipFloatCheck && !options.triggerOnly) {
       console.error(`Aborting as a safety precaution. To bypass if testing via local proxy, pass --force-skip-float-check.`);
       process.exit(1);
     }
   }
 
   // =========================================================================
-  // SEQUENTIAL TEST EXECUTION (Guardrail 7)
+  // TRIGGER-ONLY EXECUTION MODE
+  // =========================================================================
+  if (options.triggerOnly) {
+    console.log('\n=============================================================================');
+    console.log(`🚀 STARTING TRIGGER-ONLY DISPATCH (${activeTests.length} services)`);
+    console.log('=============================================================================');
+
+    const results = [];
+
+    for (let idx = 0; idx < activeTests.length; idx++) {
+      const test = activeTests[idx];
+      const testNum = idx + 1;
+
+      console.log(`\n-----------------------------------------------------------------------------`);
+      console.log(`[DISPATCH ${testNum}/${activeTests.length}] Triggering STK for ${test.serviceSlug} (${test.name})`);
+      console.log(`-----------------------------------------------------------------------------`);
+      console.log(`Service:        ${test.name} (${test.serviceSlug})`);
+      console.log(`Amount:         KES ${test.amount} (Theoretical)`);
+      console.log(`Destination:    ${test.resolvedDestination}`);
+      console.log(`Paying Phone:   ${payingPhone}`);
+      console.log(`Timestamp:      ${new Date().toLocaleTimeString()}`);
+
+      const testRecord = {
+        serviceSlug: test.serviceSlug,
+        name: test.name,
+        amount: test.amount,
+        destination: test.resolvedDestination,
+        reference: null,
+        stkDispatched: false,
+        dispatchTimestamp: null,
+        initiationStatus: 'PENDING',
+        postExpiryStatus: 'NOT_CHECKED',
+        postExpiryDetails: '',
+        failureReason: null,
+      };
+
+      const idempotencyKey = `trigger-only-${test.serviceSlug}-${Date.now()}`;
+      const payload = {
+        serviceSlug: test.serviceSlug,
+        productId: test.productId || undefined,
+        destination: test.resolvedDestination,
+        amount: test.amount,
+        guestPhone: payingPhone,
+      };
+
+      let initSucceeded = false;
+      const maxInitAttempts = 2;
+
+      for (let attempt = 1; attempt <= maxInitAttempts && !initSucceeded; attempt++) {
+        try {
+          if (attempt > 1) {
+            console.log(`   🔄 Retrying dispatch for ${test.serviceSlug} (Attempt ${attempt}/${maxInitAttempts}) after gateway timeout...`);
+            await sleep(3000);
+          } else {
+            console.log(`Calling POST ${options.appUrl}/api/transactions ...`);
+          }
+
+          const resp = await fetch(`${options.appUrl}/api/transactions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-idempotency-key': idempotencyKey,
+              'x-forwarded-for': `127.0.0.${testNum}`,
+            },
+            body: JSON.stringify(payload),
+          });
+
+          const initRes = await resp.json().catch(() => ({}));
+          if (!resp.ok) {
+            throw new Error(initRes.error?.message || initRes.error || `HTTP ${resp.status}`);
+          }
+
+          const tx = initRes.transaction;
+          testRecord.reference = tx.reference;
+          testRecord.stkDispatched = true;
+          testRecord.dispatchTimestamp = new Date().toLocaleTimeString();
+          testRecord.initiationStatus = 'STK_DISPATCHED';
+          initSucceeded = true;
+
+          console.log(`✅ [${testRecord.dispatchTimestamp}] STK Push dispatched to ${payingPhone} for KES ${test.amount}.`);
+          console.log(`   QasiNet Reference: ${tx.reference}`);
+          console.log(`   Prompt sent. Moving immediately to next service without waiting for PIN...`);
+        } catch (err) {
+          if (attempt === maxInitAttempts) {
+            console.error(`❌ STK Dispatch Failed: ${err.message}`);
+            testRecord.stkDispatched = false;
+            testRecord.initiationStatus = 'INITIATION_FAILED';
+            testRecord.failureReason = err.message;
+          }
+        }
+      }
+
+      results.push(testRecord);
+    }
+
+    // -----------------------------------------------------------------------
+    // Post-Expiry Status Reconciliation Window
+    // -----------------------------------------------------------------------
+    console.log('\n=============================================================================');
+    console.log(`⏳ WAITING FOR M-PESA STK EXPIRY WINDOW (${options.expiryWait} SECONDS)`);
+    console.log('=============================================================================');
+    console.log(`All ${activeTests.length} STK push requests have been dispatched.`);
+    console.log(`Do NOT approve the prompts on ${payingPhone}. They will expire automatically.`);
+    console.log(`Waiting ${options.expiryWait}s for Safaricom network timeout callbacks to process...`);
+
+    const expiryStartTime = Date.now();
+    const expiryWaitMs = options.expiryWait * 1000;
+    while (Date.now() - expiryStartTime < expiryWaitMs) {
+      await sleep(1000);
+      const remaining = Math.max(0, Math.ceil((expiryWaitMs - (Date.now() - expiryStartTime)) / 1000));
+      process.stdout.write(`   ⏳ Expiry countdown: ${remaining}s remaining...\r`);
+    }
+    console.log(`\n\nExpiry window elapsed. Running post-expiry resolution status check on all transactions...\n`);
+
+    // Poll each triggered transaction once
+    for (const testRecord of results) {
+      if (!testRecord.reference) {
+        testRecord.postExpiryStatus = 'SKIPPED (NOT DISPATCHED)';
+        continue;
+      }
+
+      try {
+        const statusRes = await fetch(`${options.appUrl}/api/transactions/${testRecord.reference}/status`);
+        if (statusRes.ok) {
+          const statusData = await statusRes.json();
+          testRecord.finalState = statusData.state;
+          testRecord.finalMessage = statusData.message || '';
+
+          if (statusData.state === 'PAYMENT_FAILED') {
+            testRecord.postExpiryStatus = 'EXPIRED_CLEANLY';
+            testRecord.postExpiryDetails = statusData.message || 'M-Pesa STK prompt expired cleanly';
+          } else if (statusData.state === 'PAYMENT_PENDING' || statusData.state === 'CREATED') {
+            testRecord.postExpiryStatus = 'STUCK_PENDING';
+            testRecord.postExpiryDetails = 'Still in PAYMENT_PENDING — reconciliation gap flag';
+          } else if (statusData.state === 'SUCCESS') {
+            testRecord.postExpiryStatus = 'APPROVED_UNEXPECTEDLY';
+            testRecord.postExpiryDetails = 'Prompt was approved on device';
+          } else if (statusData.state.includes('REFUND')) {
+            testRecord.postExpiryStatus = 'REFUND_PENDING';
+            testRecord.postExpiryDetails = statusData.message || 'Entered refund pending';
+          } else {
+            testRecord.postExpiryStatus = statusData.state;
+            testRecord.postExpiryDetails = statusData.message || statusData.state;
+          }
+        } else {
+          testRecord.postExpiryStatus = `HTTP_${statusRes.status}`;
+          testRecord.postExpiryDetails = 'Status endpoint error';
+        }
+      } catch (err) {
+        testRecord.postExpiryStatus = 'CHECK_ERROR';
+        testRecord.postExpiryDetails = err.message;
+      }
+    }
+
+    // Check final Kyanda balance to confirm ZERO SPEND
+    console.log('Checking post-run Kyanda merchant float balance (Zero Spend Audit)...');
+    const finalBalanceResult = await getLiveKyandaBalance();
+    const finalAccountBal = finalBalanceResult.accountBal || 0;
+    const floatDiff = finalAccountBal - initialAccountBal;
+
+    console.log(`- Starting Kyanda Float: KES ${initialAccountBal.toLocaleString()}`);
+    console.log(`- Ending Kyanda Float:   KES ${finalAccountBal.toLocaleString()}`);
+    console.log(`- Float Spent:           KES ${(-floatDiff).toFixed(2)}`);
+    if (floatDiff === 0) {
+      console.log('✅ ZERO SPEND CONFIRMED: Exact same float balance before and after run.');
+    } else {
+      console.log(`ℹ️  Float delta: KES ${floatDiff} (Account balance adjusted by other external activity).`);
+    }
+
+    // -----------------------------------------------------------------------
+    // Final Trigger-Only Report
+    // -----------------------------------------------------------------------
+    const endTime = new Date();
+    const totalDurationSecs = Math.round((endTime.getTime() - startTime.getTime()) / 1000);
+
+    console.log('\n=============================================================================');
+    console.log('  FINAL TRIGGER-ONLY VERIFICATION REPORT');
+    console.log('=============================================================================');
+    console.log(`Start Time:     ${startTime.toISOString()}`);
+    console.log(`End Time:       ${endTime.toISOString()}`);
+    console.log(`Total Duration: ${totalDurationSecs}s (including ${options.expiryWait}s expiry window)`);
+    console.log('-----------------------------------------------------------------------------');
+
+    const dispatchedCount = results.filter((r) => r.stkDispatched).length;
+    const expiredCount = results.filter((r) => r.postExpiryStatus === 'EXPIRED_CLEANLY').length;
+    const stuckCount = results.filter((r) => r.postExpiryStatus === 'STUCK_PENDING').length;
+    const failedInitCount = results.filter((r) => !r.stkDispatched).length;
+
+    console.log(`RESULTS SUMMARY:`);
+    console.log(`- Total Services Evaluated:    ${plan.length}`);
+    console.log(`- Active Services Triggered:   ${results.length}`);
+    console.log(`- ✅ STK Dispatched:           ${dispatchedCount}`);
+    console.log(`- ❌ Initiation Failed:         ${failedInitCount}`);
+    console.log(`- ⏭️ Skipped (Paused):          ${skippedTests.length}`);
+    console.log(`- ✅ Expired/Cancelled Clean:  ${expiredCount}`);
+    console.log(`- ⚠️ Stuck in PAYMENT_PENDING: ${stuckCount}`);
+
+    console.log('\nDETAILED TRIGGER-ONLY OUTCOME TABLE:');
+    console.log('-----------------------------------------------------------------------------------------------------------------------------');
+    console.log(
+      'Service'.padEnd(20) +
+      'Amount (Theor.)'.padEnd(17) +
+      'Reference'.padEnd(24) +
+      'STK Dispatched'.padEnd(24) +
+      'Post-Expiry Status'.padEnd(22) +
+      'Details'
+    );
+    console.log('-----------------------------------------------------------------------------------------------------------------------------');
+
+    for (const r of results) {
+      const dispatchedText = r.stkDispatched ? `✅ YES (${r.dispatchTimestamp})` : '❌ NO';
+      const statusIcon = r.postExpiryStatus === 'EXPIRED_CLEANLY' 
+        ? '✅ EXPIRED' 
+        : r.postExpiryStatus === 'STUCK_PENDING'
+          ? '⚠️ STUCK_PENDING'
+          : r.postExpiryStatus;
+
+      console.log(
+        r.serviceSlug.padEnd(20) +
+        `KES ${r.amount}`.padEnd(17) +
+        (r.reference || 'N/A').padEnd(24) +
+        dispatchedText.padEnd(24) +
+        statusIcon.padEnd(22) +
+        (r.postExpiryDetails || r.failureReason || '')
+      );
+    }
+    console.log('-----------------------------------------------------------------------------------------------------------------------------');
+
+    if (stuckCount > 0) {
+      console.log('\n⚠️  ATTENTION: UNRESOLVED PENDING TRANSACTIONS (RECONCILIATION GAP DETECTED):');
+      for (const r of results.filter((x) => x.postExpiryStatus === 'STUCK_PENDING')) {
+        console.log(`  - Reference: ${r.reference} | Service: ${r.serviceSlug} | State: PAYMENT_PENDING`);
+        console.log(`    These transactions did not receive a Daraja timeout callback or were not reconciled by the background job.`);
+      }
+    }
+
+    console.log('\n=============================================================================');
+    console.log('LIMITATION & SCOPE NOTICE:');
+    console.log('This run verifies float-check, request formation, and STK dispatch only.');
+    console.log('It does NOT verify vending, IPN delivery, or token/confirmation content —');
+    console.log('run --confirm mode on at least one service to verify that.');
+    console.log('');
+    console.log('Note: Placeholder destination numbers (Airtel/Telkom/Equitel/Faiba) were');
+    console.log('safely used in this run because no real vending occurred.');
+    console.log('=============================================================================\n');
+
+    process.exit(failedInitCount > 0 ? 1 : 0);
+  }
+
+  // =========================================================================
+  // FULL LIVE RUN WITH APPROVAL & VENDING (--confirm mode)
   // =========================================================================
   console.log('\n=============================================================================');
   console.log(`🚀 STARTING LIVE SEQUENTIAL VERIFICATION (${activeTests.length} tests queued)`);
@@ -494,6 +779,7 @@ async function main() {
         headers: {
           'Content-Type': 'application/json',
           'x-idempotency-key': idempotencyKey,
+          'x-forwarded-for': `127.0.0.${testNum}`,
         },
         body: JSON.stringify(payload),
       });

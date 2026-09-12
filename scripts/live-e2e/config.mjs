@@ -21,6 +21,9 @@ export const SAFETY_CONFIG = {
 
   // Status check poll interval
   POLL_INTERVAL_MS: 3500, // 3.5 seconds
+
+  // Default wait window for M-Pesa STK prompts to expire on the network in trigger-only mode
+  DEFAULT_EXPIRY_WAIT_SECS: 90, // 90 seconds
 };
 
 /**

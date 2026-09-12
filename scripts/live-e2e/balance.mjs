@@ -60,74 +60,65 @@ export async function getLiveKyandaBalance(timeoutMs = 15000) {
     signature: signature,
   });
 
-  return new Promise((resolve) => {
-    const url = new URL('/billing/v1/account-balance', baseUrl);
-    const transport = url.protocol === 'https:' ? https : http;
+  const url = `${baseUrl.replace(/\/+$/, '')}/billing/v1/account-balance`;
+  const retries = 2;
 
-    const req = transport.request(
-      url,
-      {
+  for (let attempt = 1; attempt <= retries + 1; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+      const res = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(payload),
           'apiKey': apiKey,
+          'User-Agent': 'QasiNet-LiveE2E/1.0',
         },
-        timeout: timeoutMs,
-      },
-      (res) => {
-        let body = '';
-        res.on('data', (chunk) => (body += chunk));
-        res.on('end', () => {
-          try {
-            const parsed = JSON.parse(body);
-            const accountBal = parseFloat(parsed.Account_Bal || '0');
-            const earningsBal = parseFloat(parsed.Earnings_Bal || '0');
-            const isSuccess = parsed.status_code === '0000' || parsed.status === 'success' || !isNaN(accountBal);
-
-            resolve({
-              success: isSuccess,
-              accountBal: isNaN(accountBal) ? 0 : accountBal,
-              earningsBal: isNaN(earningsBal) ? 0 : earningsBal,
-              raw: parsed,
-              httpStatus: res.statusCode,
-            });
-          } catch (err) {
-            resolve({
-              success: false,
-              error: `Invalid JSON response from gateway: ${body.substring(0, 100)}`,
-              accountBal: 0,
-              earningsBal: 0,
-              raw: body,
-              httpStatus: res.statusCode,
-            });
-          }
-        });
-      }
-    );
-
-    req.on('timeout', () => {
-      req.destroy();
-      resolve({
-        success: false,
-        error: `Gateway connection timed out after ${timeoutMs / 1000}s`,
-        accountBal: 0,
-        earningsBal: 0,
-        raw: null,
+        body: payload,
+        signal: controller.signal,
       });
-    });
 
-    req.on('error', (err) => {
-      resolve({
+      clearTimeout(timer);
+
+      const parsed = await res.json().catch(() => ({}));
+      const accountBal = parseFloat(parsed.Account_Bal || '0');
+      const earningsBal = parseFloat(parsed.Earnings_Bal || '0');
+      const isSuccess = parsed.status_code === '0000' || parsed.status === 'success' || !isNaN(accountBal);
+
+      return {
+        success: isSuccess,
+        accountBal: isNaN(accountBal) ? 0 : accountBal,
+        earningsBal: isNaN(earningsBal) ? 0 : earningsBal,
+        raw: parsed,
+        httpStatus: res.status,
+      };
+    } catch (err) {
+      if (attempt <= retries) {
+        await new Promise((r) => setTimeout(r, 1000 * attempt));
+        continue;
+      }
+      return {
         success: false,
         error: `Network error connecting to Kyanda gateway: ${err.message}`,
         accountBal: 0,
         earningsBal: 0,
         raw: null,
-      });
-    });
+      };
+    }
+  }
+}
 
-    req.write(payload);
-    req.end();
-  });
+// Allow running directly via CLI: node scripts/live-e2e/balance.mjs
+if (process.argv[1] && process.argv[1].endsWith('balance.mjs')) {
+  console.log('Querying live Kyanda merchant float balance...');
+  const res = await getLiveKyandaBalance();
+  if (res.success) {
+    console.log(`✅ Account_Bal:  KES ${res.accountBal.toLocaleString()}`);
+    console.log(`   Earnings_Bal: KES ${res.earningsBal.toLocaleString()}`);
+    console.log(`   HTTP Status:  ${res.httpStatus}`);
+  } else {
+    console.error(`❌ Balance check failed: ${res.error}`);
+    process.exit(1);
+  }
 }

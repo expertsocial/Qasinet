@@ -47,6 +47,7 @@ The harness is engineered with defense-in-depth safety limits to prevent acciden
 | **Electricity** | `kplc-postpaid` | KPLC Postpaid Bill | KES 50 | Account `1234567` | ⏭️ **SKIPPED (Paused in Registry)** |
 
 ### Spend Profiles:
+- **Trigger-Only Run Across All Active Services**: **KES 0** (Zero spend — prompts expire on Safaricom network)
 - **Single Airtime Test** (`safaricom-airtime`): **KES 10**
 - **Single TV Test** (`gotv`): **KES 50**
 - **All Pre-Confirmed Test Accounts Only** (`--skip-unverified`): **KES 260**
@@ -62,8 +63,24 @@ Preview what the harness would do without spending anything:
 node scripts/live-e2e/verify.mjs
 ```
 
-### Step 2: Test a Single Service (Recommended Starting Point)
-Test Safaricom Airtime with a real STK push to your phone for KES 10:
+### Step 2: Trigger-Only Verification (ZERO Spend — Recommended Pre-Flight)
+Proves float check, request signing, and live STK push dispatch for all active services without spending any money:
+```bash
+node scripts/live-e2e/verify.mjs --phone=0712345678 --trigger-only
+```
+**Behavior in Trigger-Only Mode:**
+1. Verifies live Kyanda float balance is sufficient (`Account_Bal`).
+2. Warns the operator that up to 11 real STK push prompts will be sent in sequence and **must NOT be approved** on the phone.
+3. Rapidly calls `POST /api/transactions` for each active service, records the reference, and immediately dispatches the next prompt without waiting for PIN.
+4. Waits for the network timeout expiry window (default: **90 seconds**).
+5. Polls each transaction once to verify it transitioned cleanly to `EXPIRED_CLEANLY` (`PAYMENT_FAILED`) rather than being left stuck in `PAYMENT_PENDING` (reconciliation gap check).
+6. Confirms zero spend by comparing ending vs starting Kyanda merchant float.
+
+> [!NOTE]
+> **Scope Limitation:** Trigger-only mode verifies float-check, request formation, and STK dispatch only. It does **NOT** verify vending, IPN delivery, or token/confirmation content — run `--confirm` mode on at least one service to verify that.
+
+### Step 3: Test a Single Service with Approval & Vending (Spends KES 10)
+Test Safaricom Airtime with a real STK push and real vend to your phone for KES 10:
 ```bash
 node scripts/live-e2e/verify.mjs --service=safaricom-airtime --phone=0712345678 --confirm
 ```
@@ -76,14 +93,14 @@ Please type your phone number again to confirm authorization:
 ```
 Then approve the STK push on your phone with your M-Pesa PIN.
 
-### Step 3: Test All Confirmed Services (Excluding Unverified SIMs)
+### Step 4: Test All Confirmed Services (Excluding Unverified SIMs)
 Runs the 6 services that have known-good test accounts (Safaricom, GOtv, DStv, Zuku, StarTimes, Nairobi Water):
 ```bash
 node scripts/live-e2e/verify.mjs --skip-unverified --phone=0712345678 --confirm
 ```
 
-### Step 4: Full Active Suite Run
-Runs all 11 active services sequentially (spending KES 310 total):
+### Step 5: Full Active Suite Run (Real Spend)
+Runs all 11 active services sequentially with live approval and vending (spending KES 310 total):
 ```bash
 node scripts/live-e2e/verify.mjs --phone=0712345678 --confirm
 ```
@@ -95,13 +112,21 @@ node scripts/live-e2e/verify.mjs --phone=0712345678 --confirm
 | Option | Description | Default |
 | :--- | :--- | :--- |
 | `--dry-run` | Run in simulation mode (no API calls, no spend). | Active by default |
-| `--confirm` | Required flag to authorize real STK push and float spend. | `false` |
-| `--phone=07XXXXXXXX` | The M-Pesa phone number to receive and approve STK prompts. | *Required for live* |
+| `--trigger-only` | Trigger real STK pushes without waiting for approval. Zero real spend. Checks post-expiry resolution. | `false` |
+| `--confirm` | Required flag to authorize real STK push and real float spend. | `false` |
+| `--phone=07XXXXXXXX` | The M-Pesa phone number to receive STK prompts. | *Required for live/trigger* |
 | `--service=<slug>` | Run a single service (e.g. `safaricom-airtime`, `gotv`, `nairobi-water`). | All active services |
 | `--skip-unverified` | Skip services without live test SIMs (Airtel, Telkom, Equitel, Faiba). | `false` |
-| `--max-spend=<KES>` | Hard spend ceiling. Aborts if planned spend exceeds this. | `500` |
+| `--max-spend=<KES>` | Hard spend ceiling for `--confirm` mode. Aborts if planned spend exceeds this. | `500` |
 | `--min-float-buffer=<KES>` | Required Kyanda float buffer above planned spend. | `50` |
+| `--expiry-wait=<seconds>` | Wait window for Safaricom STK prompts to expire in `--trigger-only` mode. | `90` |
 | `--app-url=<url>` | Base URL of the QasiNet instance to test against. | `http://localhost:4000` |
+
+### Standalone Balance Checker:
+To inspect Kyanda merchant float balance directly:
+```bash
+node scripts/live-e2e/balance.mjs
+```
 
 ### Destination Overrides:
 If you have live destination numbers for non-Safaricom networks, pass them via CLI:
@@ -134,3 +159,4 @@ If a transaction enters `VENDING_FAILED_REFUND_PENDING` (e.g. upstream biller ou
    - Verify the M-Pesa receipt on Daraja portal or internal statement.
    - Send the refund to the customer phone via manual M-Pesa B2C payout or till reversal.
    - Add an audit note in the admin dashboard marking the refund processed.
+
