@@ -1,4 +1,10 @@
-import { MpesaDarajaClient, MpesaStkPushPayload, MpesaStkPushResponse } from './client';
+import {
+  MpesaDarajaClient,
+  MpesaStkPushPayload,
+  MpesaStkPushResponse,
+  MpesaStkQueryPayload,
+  MpesaStkQueryResponse,
+} from './client';
 
 export class MpesaDarajaProvider {
   private client: MpesaDarajaClient;
@@ -91,5 +97,23 @@ export class MpesaDarajaProvider {
     };
 
     return this.client.request<MpesaStkPushResponse>('/mpesa/stkpush/v1/processrequest', payload);
+  }
+
+  /**
+   * Queries the status of an STK Push from Daraja
+   * @param checkoutRequestId CheckoutRequestID returned from initiateSTKPush
+   */
+  public async querySTKStatus(checkoutRequestId: string): Promise<MpesaStkQueryResponse> {
+    const timestamp = this.generateTimestamp();
+    const password = this.generatePassword(timestamp);
+
+    const payload: MpesaStkQueryPayload = {
+      BusinessShortCode: this.shortcode,
+      Password: password,
+      Timestamp: timestamp,
+      CheckoutRequestID: checkoutRequestId,
+    };
+
+    return this.client.request<MpesaStkQueryResponse>('/mpesa/stkpushquery/v1/query', payload);
   }
 }

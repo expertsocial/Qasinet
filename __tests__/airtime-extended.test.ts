@@ -6,6 +6,7 @@ import { initTransactionSchema } from '../src/lib/validations/transaction';
 import { FAIBA_DATA_BUNDLES, FAIBA_BUNDLE_CODES } from '../src/lib/constants/faiba-bundles';
 import { mapKyandaError } from '../src/lib/providers/kyanda/errors';
 import { QasiNetError } from '../src/lib/errors';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 describe('Extended Airtime & Faiba Bundles Test Suite', () => {
   const originalEnv = process.env;
@@ -176,10 +177,11 @@ describe('Extended Airtime & Faiba Bundles Test Suite', () => {
       try {
         await client.request('/billing/v1/airtime/create', {});
         expect.unreachable('Should have thrown');
-      } catch (err: any) {
-        expect(err).toBeInstanceOf(QasiNetError);
-        expect(err.category).toBe('VALIDATION_ERROR');
-        expect(err.message).toBe('productCode is required for FAIBA_B. Use a published Faiba bundle code.');
+      } catch (err: unknown) {
+        const qErr = err as QasiNetError;
+        expect(qErr).toBeInstanceOf(QasiNetError);
+        expect(qErr.category).toBe('VALIDATION_ERROR');
+        expect(qErr.message).toBe('productCode is required for FAIBA_B. Use a published Faiba bundle code.');
       }
     });
 
@@ -197,10 +199,11 @@ describe('Extended Airtime & Faiba Bundles Test Suite', () => {
       try {
         await client.request('/billing/v1/airtime/create', {});
         expect.unreachable('Should have thrown');
-      } catch (err: any) {
-        expect(err).toBeInstanceOf(QasiNetError);
-        expect(err.category).toBe('VALIDATION_ERROR');
-        expect(err.message).toBe('Invalid Faiba productCode. Use a published bundle code and matching amount.');
+      } catch (err: unknown) {
+        const qErr = err as QasiNetError;
+        expect(qErr).toBeInstanceOf(QasiNetError);
+        expect(qErr.category).toBe('VALIDATION_ERROR');
+        expect(qErr.message).toBe('Invalid Faiba productCode. Use a published bundle code and matching amount.');
       }
     });
 
@@ -218,10 +221,11 @@ describe('Extended Airtime & Faiba Bundles Test Suite', () => {
       try {
         await client.request('/billing/v1/airtime/create', {});
         expect.unreachable('Should have thrown');
-      } catch (err: any) {
-        expect(err).toBeInstanceOf(QasiNetError);
-        expect(err.category).toBe('INSUFFICIENT_FUNDS');
-        expect(err.message).toBe('Insufficient Funds!');
+      } catch (err: unknown) {
+        const qErr = err as QasiNetError;
+        expect(qErr).toBeInstanceOf(QasiNetError);
+        expect(qErr.category).toBe('INSUFFICIENT_FUNDS');
+        expect(qErr.message).toBe('Insufficient Funds!');
       }
     });
 
@@ -441,11 +445,20 @@ describe('Extended Airtime & Faiba Bundles Test Suite', () => {
       expect(isServiceEnabled('faiba-data')).toBe(true);
     });
 
-    it('rejects data bundle initiation for non-Faiba services with SERVICE_UNAVAILABLE', async () => {
+    it('rejects data bundle initiation for unsupported data networks with SERVICE_UNAVAILABLE', async () => {
       const { TransactionOrchestrator } = await import('../src/lib/services/orchestrator');
       
-      const createChainable = (terminalResult: any) => {
-        const chain: any = {
+      interface MockChainable {
+        select: ReturnType<typeof vi.fn>;
+        eq: ReturnType<typeof vi.fn>;
+        in: ReturnType<typeof vi.fn>;
+        gte: ReturnType<typeof vi.fn>;
+        single: ReturnType<typeof vi.fn>;
+        maybeSingle: ReturnType<typeof vi.fn>;
+      }
+
+      const createChainable = (terminalResult: unknown) => {
+        const chain: MockChainable = {
           select: vi.fn(() => chain),
           eq: vi.fn(() => chain),
           in: vi.fn(() => chain),
@@ -456,34 +469,43 @@ describe('Extended Airtime & Faiba Bundles Test Suite', () => {
         return chain;
       };
 
-      const mockSupabase: any = {
+      const mockSupabase = {
         from: vi.fn().mockImplementation((table: string) => {
           if (table === 'transactions') {
             return createChainable({ data: [] });
           }
           return createChainable({
-            data: { id: 'safaricom-data-id', type: 'data', slug: 'safaricom-data', is_active: true },
+            data: { id: 'telkom-data-id', type: 'data', slug: 'telkom-data', is_active: true },
             error: null
           });
         })
       };
 
-      const orchestrator = new TransactionOrchestrator(mockSupabase);
+      const orchestrator = new TransactionOrchestrator(mockSupabase as unknown as SupabaseClient);
       await expect(
         orchestrator.initiateTransaction({
-          serviceSlug: 'safaricom-data',
+          serviceSlug: 'telkom-data',
           destination: '0712345678',
           amount: 100,
           idempotencyKey: 'test-idem-1'
         })
-      ).rejects.toThrow(/Data bundles are currently only supported for Faiba 4G/);
+      ).rejects.toThrow(/Data bundles are currently supported for Safaricom, Airtel, and Faiba 4G/);
     });
 
     it('rejects Faiba data bundle initiation when feature flag is disabled with SERVICE_UNAVAILABLE', async () => {
       const { TransactionOrchestrator } = await import('../src/lib/services/orchestrator');
       
-      const createChainable = (terminalResult: any) => {
-        const chain: any = {
+      interface MockChainable {
+        select: ReturnType<typeof vi.fn>;
+        eq: ReturnType<typeof vi.fn>;
+        in: ReturnType<typeof vi.fn>;
+        gte: ReturnType<typeof vi.fn>;
+        single: ReturnType<typeof vi.fn>;
+        maybeSingle: ReturnType<typeof vi.fn>;
+      }
+
+      const createChainable = (terminalResult: unknown) => {
+        const chain: MockChainable = {
           select: vi.fn(() => chain),
           eq: vi.fn(() => chain),
           in: vi.fn(() => chain),
@@ -494,7 +516,7 @@ describe('Extended Airtime & Faiba Bundles Test Suite', () => {
         return chain;
       };
 
-      const mockSupabase: any = {
+      const mockSupabase = {
         from: vi.fn().mockImplementation((table: string) => {
           if (table === 'transactions') {
             return createChainable({ data: [] });
@@ -508,7 +530,7 @@ describe('Extended Airtime & Faiba Bundles Test Suite', () => {
 
       process.env.NEXT_PUBLIC_SERVICE_STATUS_FAIBA_DATA = 'coming_soon';
       try {
-        const orchestrator = new TransactionOrchestrator(mockSupabase);
+        const orchestrator = new TransactionOrchestrator(mockSupabase as unknown as SupabaseClient);
         await expect(
           orchestrator.initiateTransaction({
             serviceSlug: 'faiba-data',

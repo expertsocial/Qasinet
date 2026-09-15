@@ -1,11 +1,17 @@
 import { z } from 'zod';
 import { FAIBA_BUNDLE_CODES } from '../constants/faiba-bundles';
+import { SAFARICOM_BUNDLE_CODES } from '../constants/safaricom-bundles';
+import { AIRTEL_BUNDLE_CODES } from '../constants/airtel-bundles';
 
 const phoneRegex = /^(?:254|\+254|0)?([17]\d{8})$/;
 
 export const initTransactionSchema = z.object({
   serviceSlug: z.string().min(1, 'Service is required'),
-  productId: z.string().uuid('Invalid product ID').or(z.enum(FAIBA_BUNDLE_CODES)).optional(),
+  productId: z.string().uuid('Invalid product ID')
+    .or(z.enum(FAIBA_BUNDLE_CODES))
+    .or(z.enum(SAFARICOM_BUNDLE_CODES))
+    .or(z.enum(AIRTEL_BUNDLE_CODES))
+    .optional(),
   destination: z.string().min(1, 'Destination is required'),
   amount: z.number().positive('Amount must be greater than 0'),
   guestPhone: z.string().regex(phoneRegex, 'Invalid Kenyan phone number').optional(),

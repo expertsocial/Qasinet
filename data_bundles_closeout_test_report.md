@@ -9,11 +9,12 @@
 
 ## 1. Executive Summary
 
-This report documents the closeout of the **Data Bundles** milestone on QasiNet in strict accordance with the Kyanda merchant documentation. 
+This report documents the closeout of the **Data Bundles** milestone on QasiNet in strict accordance with the Kyanda merchant documentation.
 
 Per Kyanda's official API specification, **Faiba (`telco: "FAIBA_B"`) is the only network with a documented data-bundle vending mechanism**. Safaricom, Airtel, Telkom, and Equitel have no bundle endpoints, codes, or pricing in Kyanda's catalog.
 
-### Core Objectives Verified:
+### Core Objectives Verified
+
 1. **Catalog & UI Honesty:** Safaricom, Airtel, Telkom, and Equitel have no bundle paths, broken tabs, or misleading checkout flows.
 2. **Faiba Bundles (`FAIBA_B`) Gateway Telemetry:** Live gateway responses confirmed down to the exact HTTP status and error text.
 3. **Safety Guard & Feature Flag:** Customer checkout for Faiba bundles is held with an amber advisory banner (`NEXT_PUBLIC_ENABLE_FAIBA_BUNDLES=false`) while pinless airtime for all 5 carriers remains 100% active.
@@ -26,7 +27,7 @@ Per Kyanda's official API specification, **Faiba (`telco: "FAIBA_B"`) is the onl
 We executed real-time HTTP requests against `https://api.kyanda.app/billing/v1/airtime/create` to test credentials, signatures, carrier channels, and error handling.
 
 | # | Test Scenario | Telco | Payload / Code | HTTP | Kyanda Code | Gateway Message | Transaction ID | Gateway Interpretation |
-|---|---------------|-------|----------------|------|-------------|-----------------|----------------|------------------------|
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **1** | **Live Pinless Airtime (Faiba)** | `FAIBA` | Amount: `20` | `400` | `1107` | `"Insufficient Funds!"` | `QASOFLAPI41995092` | **AUTHORIZED / LIVE.** Credentials, HMAC signature, and `FAIBA` channel are fully validated. Stopped solely by account float. |
 | **2** | **Live Data Bundle (Faiba)** | `FAIBA_B` | `DailyData1GB` @ `50` | `400` | `9002` | `"Invalid Faiba productCode. Use a published bundle code and matching amount."` | `N/A` | **BLOCKED BY KYANDA ACCOUNT.** Gateway recognizes channel parameter but `FAIBA_B` is not provisioned on `qasinet`. |
 | **3** | **Security Check: Malformed Signature** | `FAIBA_B` | Invalid HMAC Hash | `400` | `9002` | `"Invalid Faiba productCode. Use a published bundle code and matching amount."` | `N/A` | **SECURITY FINDING.** Gateway validates `productCode` before evaluating cryptographic HMAC signature. |
@@ -38,7 +39,7 @@ We executed real-time HTTP requests against `https://api.kyanda.app/billing/v1/a
 
 All 70 unit and integration tests across 5 test suites passed cleanly in **2.48s**.
 
-```
+```text
  ✓ __tests__/airtime-extended.test.ts (20 tests)
  ✓ __tests__/paybill.test.ts (12 tests)
  ✓ __tests__/kyanda.test.ts (13 tests)
@@ -50,7 +51,8 @@ All 70 unit and integration tests across 5 test suites passed cleanly in **2.48s
    Duration  2.48s
 ```
 
-### Specific Verifications in `airtime-extended.test.ts`:
+### Specific Verifications in airtime-extended test
+
 - [x] **Telco Whitelist Validation:** Accepts `SAFARICOM`, `AIRTEL`, `TELKOM`, `EQUITEL`, `FAIBA`, and `FAIBA_B`. Rejects non-existent networks (`MTN`, `ORANGE`) with `9002: Invalid transaction channel`.
 - [x] **ProductCode Gating:** Strictly requires `productCode` for `FAIBA_B`, but strips or ignores it for pinless airtime.
 - [x] **Scoped Zod Schema:** Validates `productId` as a UUID for normal products OR one of the 9 published `FAIBA_BUNDLE_CODES` without loosening system-wide validation.
@@ -78,21 +80,27 @@ All 70 unit and integration tests across 5 test suites passed cleanly in **2.48s
 ## 5. Security Observation for Kyanda Support
 
 > [!WARNING]
+>
 > ### Premature Parameter Validation Over Signature Check
+>
 > When testing `POST /billing/v1/airtime/create` with `telco: "FAIBA_B"`, sending an **intentionally malformed HMAC signature** alongside a documented bundle code still returns:
+>
 > ```json
 > {
 >   "status_code": "9002",
 >   "transactiontxt": "Invalid Faiba productCode. Use a published bundle code and matching amount."
 > }
 > ```
+>
 > Rather than:
+>
 > ```json
 > {
 >   "status_code": "1104",
 >   "transactiontxt": "Signature Mismatch!"
 > }
 > ```
+>
 > This proves that Kyanda's gateway validates `productCode` and channel entitlement **before** verifying the request's HMAC signature. This confirms that the `9002` error is an account authorization gap on Kyanda's side, rather than a signature or payload defect.
 
 ---
@@ -105,11 +113,14 @@ All 70 unit and integration tests across 5 test suites passed cleanly in **2.48s
    - **Security Note:** Mention the signature validation observation above.
 
 2. **Run Status Check Tool:**
+
    ```bash
    npm run check:faiba-bundles
    ```
+
    *Expected result once enabled by Kyanda:*
-   ```
+
+   ```text
    HTTP Status:     400
    Kyanda Code:     1107
    Kyanda Message:  "Insufficient Funds!"
@@ -119,7 +130,9 @@ All 70 unit and integration tests across 5 test suites passed cleanly in **2.48s
 
 3. **Flip Feature Flag:**
    Once `1107` is returned, update `.env.local`:
+
    ```env
    NEXT_PUBLIC_ENABLE_FAIBA_BUNDLES=true
    ```
+
    This will instantly enable Faiba bundle checkout in the customer UI without code changes.

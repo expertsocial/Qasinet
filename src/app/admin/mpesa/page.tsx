@@ -129,7 +129,7 @@ export default async function MpesaReconciliationPage({
 
   // Batch fetch profiles for any user_ids to resolve payer phone when guest_phone is null
   const userIds = Array.from(new Set(transactions?.map((t: any) => t.user_id).filter(Boolean)));
-  let profilesMap: Record<string, { full_name: string; phone: string; email?: string }> = {};
+  const profilesMap: Record<string, { full_name: string; phone: string; email?: string }> = {};
 
   if (userIds.length > 0) {
     const { data: profiles } = await supabaseService

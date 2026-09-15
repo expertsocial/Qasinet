@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { QasiNetError } from '../errors';
-import { sendReceiptEmail } from './email';
+import { sendReceiptEmail, sendAdminRefundAlertEmail } from './email';
 import { isServiceEnabled, getServiceById } from './registry';
 
 export type TransactionStatus =
@@ -12,6 +12,7 @@ export type TransactionStatus =
   | 'PAYMENT_FAILED'
   | 'VENDING_FAILED'
   | 'VENDING_FAILED_REFUND_PENDING'
+  | 'UNMATCHED_PAYMENT_MANUAL_REVIEW'
   | 'REVERSED'
   | 'TIMEOUT'
   | 'UNKNOWN';
@@ -26,6 +27,31 @@ export interface InitTransactionParams {
   idempotencyKey: string;
 }
 
+export interface PricingRule {
+  is_active?: boolean;
+  provider_cost_percentage?: number;
+  provider_cost_fixed?: number;
+  selling_price_percentage?: number;
+  selling_price_fixed?: number;
+  our_margin_percentage?: number;
+  our_margin_fixed?: number;
+}
+
+export interface ServiceRecord {
+  id: string;
+  name: string;
+  type: string;
+  slug: string;
+  provider_id: string;
+  pricing?: PricingRule[];
+}
+
+export interface ProductRecord {
+  id: string;
+  provider_product_id?: string;
+  pricing?: PricingRule[];
+}
+
 export class TransactionOrchestrator {
   constructor(private readonly supabase: SupabaseClient) {}
 
@@ -38,7 +64,7 @@ export class TransactionOrchestrator {
     return `QSN-${yyyy}${mm}${dd}-${randomStr}`;
   }
 
-  public async logEvent(transactionId: string, status: TransactionStatus, details?: any) {
+  public async logEvent(transactionId: string, status: TransactionStatus, details?: Record<string, unknown>) {
     let { error } = await this.supabase.from('transaction_events').insert({
       transaction_id: transactionId,
       status,
@@ -71,23 +97,39 @@ export class TransactionOrchestrator {
       throw new QasiNetError('DUPLICATE_REQUEST', 'A similar transaction is already in progress. Please wait.');
     }
 
-    const { data: service, error: serviceError } = await this.supabase
-      .from('services')
-      .select('id, name, type, slug, provider_id, pricing(*)')
-      .eq('slug', params.serviceSlug)
-      .eq('is_active', true)
-      .single();
+    let service: ServiceRecord | null = null;
+    let serviceError: { message?: string } | null = null;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const res = await this.supabase
+        .from('services')
+        .select('id, name, type, slug, provider_id, pricing(*)')
+        .eq('slug', params.serviceSlug)
+        .eq('is_active', true)
+        .single();
+      service = res.data;
+      serviceError = res.error;
+      if (service) break;
+      if (serviceError && attempt < 2) {
+        await new Promise(r => setTimeout(r, 500));
+      }
+    }
 
-    if (serviceError || !service) {
+    if (serviceError && !service) {
+      console.error(`[Orchestrator] Failed to fetch service ${params.serviceSlug}:`, serviceError);
+      throw new QasiNetError('SERVICE_UNAVAILABLE', 'Service lookup temporarily unavailable due to database connection issue. Please retry.');
+    }
+
+    if (!service) {
       throw new QasiNetError('VALIDATION_ERROR', 'Service not found or inactive');
     }
 
-    // Enforce Faiba-only data bundle support and check feature flag
+    // Enforce data bundle availability
     if (service.type === 'data') {
-      if (service.slug !== 'faiba-data') {
-        throw new QasiNetError('SERVICE_UNAVAILABLE', 'Data bundles are currently only supported for Faiba 4G. Other networks are coming soon.');
+      const supportedDataServices = ['faiba-data', 'safaricom-data', 'airtel-data'];
+      if (!supportedDataServices.includes(service.slug)) {
+        throw new QasiNetError('SERVICE_UNAVAILABLE', 'Data bundles are currently supported for Safaricom, Airtel, and Faiba 4G');
       }
-      if (!isServiceEnabled('faiba-data')) {
+      if (service.slug === 'faiba-data' && !isServiceEnabled('faiba-data')) {
         throw new QasiNetError('SERVICE_UNAVAILABLE', 'Faiba data bundle vending is temporarily paused pending upstream provider activation. Please purchase Faiba Airtime instead.');
       }
     }
@@ -110,7 +152,7 @@ export class TransactionOrchestrator {
 
     let pricingRule = service.pricing?.[0];
 
-    let productRecord: any = null;
+    let productRecord: ProductRecord | null = null;
     let resolvedProductId: string | null = null;
 
     if (params.productId) {
@@ -133,7 +175,7 @@ export class TransactionOrchestrator {
         productRecord = product;
         resolvedProductId = product.id;
         if (product.pricing && product.pricing.length > 0) {
-          const activePricing = product.pricing.find((p: any) => p.is_active !== false);
+          const activePricing = product.pricing.find((p: PricingRule) => p.is_active !== false);
           if (activePricing) pricingRule = activePricing;
         }
       } else if (isUuid) {
@@ -214,7 +256,7 @@ export class TransactionOrchestrator {
       throw new QasiNetError('VALIDATION_ERROR', `Cannot update payment from state: ${tx.status}`);
     }
 
-    const updatePayload: any = { status: newState };
+    const updatePayload: Record<string, unknown> = { status: newState };
     if (paymentRef) {
       updatePayload.payment_reference = paymentRef;
     }
@@ -233,6 +275,11 @@ export class TransactionOrchestrator {
     }
 
     await this.logEvent(transactionId, newState, { paymentRef });
+
+    // Customer notification on payment failure (if customer has an email on file)
+    if (newState === 'PAYMENT_FAILED') {
+      this.dispatchCustomerNotification(transactionId, 'PAYMENT_FAILED', { reason: failureReason });
+    }
   }
 
   public async authorizeVending(transactionId: string) {
@@ -270,7 +317,7 @@ export class TransactionOrchestrator {
     transactionId: string,
     reason: string,
     providerRef?: string,
-    metadata?: any
+    metadata?: Record<string, unknown>
   ) {
     const refundDetails = {
       refund_required: true,
@@ -312,6 +359,17 @@ export class TransactionOrchestrator {
     }
 
     await this.logEvent(transactionId, 'VENDING_FAILED_REFUND_PENDING', refundDetails);
+
+    // Dual audience notifications:
+    // 1. Customer notice (Refund Under Review) if customer has email on file
+    this.dispatchCustomerNotification(transactionId, 'VENDING_FAILED_REFUND_PENDING', {
+      reason,
+      providerRef,
+      metadata,
+    });
+
+    // 2. High-priority internal Admin alert (always sent so refunds are not delayed)
+    this.dispatchAdminRefundAlert(transactionId, reason, providerRef, metadata);
   }
 
   public async finalizeTransaction(
@@ -319,7 +377,7 @@ export class TransactionOrchestrator {
     success: boolean, 
     reason?: string, 
     providerRef?: string,
-    metadata?: any,
+    metadata?: Record<string, unknown>,
     overrideFailureState?: 'VENDING_FAILED' | 'VENDING_FAILED_REFUND_PENDING'
   ) {
     if (!success && overrideFailureState === 'VENDING_FAILED_REFUND_PENDING') {
@@ -328,7 +386,7 @@ export class TransactionOrchestrator {
 
     const finalState = success ? 'SUCCESS' : 'VENDING_FAILED';
     
-    const updatePayload: any = { status: finalState };
+    const updatePayload: Record<string, unknown> = { status: finalState };
     if (reason !== undefined) updatePayload.failure_reason = reason;
     if (providerRef) updatePayload.kyanda_reference = providerRef;
 
@@ -355,50 +413,155 @@ export class TransactionOrchestrator {
         receipt_number: receiptNum
       });
 
-      // Background Email Dispatch for registered users with an email
-      (async () => {
-        try {
-          const { data: txInfo } = await this.supabase
-            .from('transactions')
-            .select('qsn_reference, amount, destination, payment_reference, kyanda_reference, created_at, user_id, services(name, type)')
-            .eq('id', transactionId)
-            .single();
-
-          if (txInfo?.user_id) {
-            const { data: profile } = await this.supabase
-              .from('profiles')
-              .select('email, full_name')
-              .eq('id', txInfo.user_id)
-              .maybeSingle();
-
-            const targetEmail = profile?.email;
-            if (targetEmail) {
-              const service: any = txInfo.services;
-              const serviceName = service?.name || (Array.isArray(service) ? service[0]?.name : 'Utility Service');
-              const serviceType = service?.type || (Array.isArray(service) ? service[0]?.type : undefined);
-
-              await sendReceiptEmail({
-                to: targetEmail,
-                customerName: profile?.full_name,
-                reference: txInfo.qsn_reference,
-                amount: txInfo.amount,
-                serviceName,
-                serviceType,
-                destination: txInfo.destination,
-                paymentReference: txInfo.payment_reference,
-                providerReference: providerRef || txInfo.kyanda_reference,
-                date: txInfo.created_at,
-                token: metadata?.token,
-                units: metadata?.units,
-                accountName: metadata?.accountName,
-              });
-            }
-          }
-        } catch (err: any) {
-          console.error('[Automated Email Dispatch Error]:', err?.message || err);
-        }
-      })();
+      // Automated Customer Receipt Dispatch
+      this.dispatchCustomerNotification(transactionId, 'SUCCESS', { providerRef, metadata });
+    } else {
+      // If vending failed without refund pending override, notify customer and admin
+      this.dispatchCustomerNotification(transactionId, 'VENDING_FAILED_REFUND_PENDING', { reason, providerRef, metadata });
+      this.dispatchAdminRefundAlert(transactionId, reason, providerRef, metadata);
     }
+  }
+
+  /**
+   * Helper: Dispatches customer-facing receipt / order confirmation email.
+   * Completely fire-and-forget and non-blocking: skips silently if no email is on file.
+   */
+  private dispatchCustomerNotification(
+    transactionId: string,
+    status: 'SUCCESS' | 'VENDING_FAILED_REFUND_PENDING' | 'PAYMENT_FAILED',
+    options?: {
+      providerRef?: string;
+      metadata?: Record<string, unknown>;
+      reason?: string;
+    }
+  ): void {
+    (async () => {
+      try {
+        const { data: txInfo } = await this.supabase
+          .from('transactions')
+          .select('qsn_reference, amount, destination, payment_reference, kyanda_reference, created_at, user_id, services(name, type)')
+          .eq('id', transactionId)
+          .single();
+
+        if (!txInfo) return;
+
+        let targetEmail: string | null = null;
+        let customerName: string | undefined = undefined;
+
+        // 1. Check registered user profile
+        if (txInfo.user_id) {
+          const { data: profile } = await this.supabase
+            .from('profiles')
+            .select('email, full_name')
+            .eq('id', txInfo.user_id)
+            .maybeSingle();
+
+          if (profile?.email) {
+            targetEmail = profile.email;
+            customerName = profile.full_name;
+          }
+        }
+
+        // 2. Check metadata for guest email
+        if (!targetEmail && typeof options?.metadata?.email === 'string') {
+          targetEmail = options.metadata.email;
+        }
+
+        // Skip silently if no email is on file
+        if (!targetEmail) {
+          return;
+        }
+
+        const rawServices = txInfo.services;
+        const serviceObj = Array.isArray(rawServices) ? rawServices[0] : rawServices;
+        const serviceName = (serviceObj as { name?: string } | null)?.name || 'Utility Service';
+        const serviceType = (serviceObj as { type?: string } | null)?.type || undefined;
+
+        await sendReceiptEmail({
+          to: targetEmail,
+          customerName,
+          reference: txInfo.qsn_reference,
+          amount: txInfo.amount,
+          serviceName,
+          serviceType,
+          destination: txInfo.destination,
+          paymentReference: txInfo.payment_reference,
+          providerReference: options?.providerRef || txInfo.kyanda_reference,
+          date: txInfo.created_at,
+          token: typeof options?.metadata?.token === 'string' ? options.metadata.token : undefined,
+          units: typeof options?.metadata?.units === 'string' || typeof options?.metadata?.units === 'number' ? options.metadata.units : undefined,
+          accountName: typeof options?.metadata?.accountName === 'string' ? options.metadata.accountName : undefined,
+          status,
+          failureReason: options?.reason,
+        });
+      } catch (err: unknown) {
+        console.error(`[Customer Email Dispatch Error - ${status}]:`, err instanceof Error ? err.message : err);
+      }
+    })();
+  }
+
+  /**
+   * Helper: Dispatches internal admin alert email for VENDING_FAILED_REFUND_PENDING cases.
+   * Completely fire-and-forget and non-blocking.
+   */
+  private dispatchAdminRefundAlert(
+    transactionId: string,
+    reason?: string,
+    providerRef?: string,
+    metadata?: Record<string, unknown>
+  ): void {
+    (async () => {
+      try {
+        const { data: txInfo } = await this.supabase
+          .from('transactions')
+          .select('qsn_reference, amount, destination, payment_reference, kyanda_reference, created_at, user_id, services(name, type)')
+          .eq('id', transactionId)
+          .single();
+
+        if (!txInfo) return;
+
+        let customerName: string | undefined = undefined;
+        let customerEmail: string | undefined = undefined;
+
+        if (txInfo.user_id) {
+          const { data: profile } = await this.supabase
+            .from('profiles')
+            .select('email, full_name')
+            .eq('id', txInfo.user_id)
+            .maybeSingle();
+
+          if (profile) {
+            customerName = profile.full_name;
+            customerEmail = profile.email || undefined;
+          }
+        }
+
+        if (!customerEmail && typeof metadata?.email === 'string') {
+          customerEmail = metadata.email;
+        }
+
+        const rawServices = txInfo.services;
+        const serviceObj = Array.isArray(rawServices) ? rawServices[0] : rawServices;
+        const serviceName = (serviceObj as { name?: string } | null)?.name || 'Utility Service';
+        const serviceType = (serviceObj as { type?: string } | null)?.type || undefined;
+
+        await sendAdminRefundAlertEmail({
+          reference: txInfo.qsn_reference,
+          amount: txInfo.amount,
+          serviceName,
+          serviceType,
+          destination: txInfo.destination,
+          paymentReference: txInfo.payment_reference,
+          providerReference: providerRef || txInfo.kyanda_reference,
+          failureReason: reason,
+          date: txInfo.created_at,
+          customerName,
+          customerEmail,
+        });
+      } catch (err: unknown) {
+        console.error('[Admin Refund Alert Email Error]:', err instanceof Error ? err.message : err);
+      }
+    })();
   }
 }
 

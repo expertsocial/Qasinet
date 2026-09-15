@@ -10,6 +10,9 @@ import { isValidKenyanPhone, normalizeKenyanPhone } from "@/lib/validation";
 import { isUtilityService } from "@/lib/account-validation";
 import { rememberServiceDestination } from "@/lib/beneficiaries";
 import { toast } from "react-hot-toast";
+import { OfflinePaybillModal } from "./OfflinePaybillModal";
+import { enqueueOfflineOrder } from "@/lib/offline/queue";
+import { WifiOff } from "lucide-react";
 
 export type ReceiptData = Record<string, unknown>;
 
@@ -25,6 +28,7 @@ export function UnifiedCheckout({ order, onEditDetails, onSuccess }: UnifiedChec
   const [phase, setPhase] = useState<CheckoutPhase>("REVIEW");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentState, setPaymentState] = useState<PaymentState>("IDLE");
+  const [showOfflineModal, setShowOfflineModal] = useState(false);
   
   // Dedicated M-Pesa Payment Phone State
   const [paymentPhone, setPaymentPhone] = useState<string>(() => {
@@ -72,6 +76,12 @@ export function UnifiedCheckout({ order, onEditDetails, onSuccess }: UnifiedChec
       return;
     }
 
+    // Check if user is offline before attempting network dispatch
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setShowOfflineModal(true);
+      return;
+    }
+
     setIsSubmitting(true);
     
     // Save to recent M-Pesa numbers
@@ -111,7 +121,27 @@ export function UnifiedCheckout({ order, onEditDetails, onSuccess }: UnifiedChec
       setPaymentState("FAILED");
       const message = err instanceof Error ? err.message : "Could not initiate payment. Please try again later.";
       setErrorMessage(message);
+
+      // If failed due to network, offer offline modal
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        setShowOfflineModal(true);
+      }
     }
+  };
+
+  const handleQueueSTK = () => {
+    const cleanPaymentPhone = normalizeKenyanPhone(paymentPhone);
+    const finalOrderPayload: OrderPayload = {
+      ...order,
+      paymentPhone: cleanPaymentPhone || order.paymentPhone
+    };
+    const queued = enqueueOfflineOrder(finalOrderPayload);
+    setShowOfflineModal(false);
+    setReference(queued.id);
+    setPhase("PAYMENT");
+    setPaymentState("PENDING");
+    setErrorMessage("Order saved to offline queue. An M-Pesa STK prompt will be triggered automatically as soon as your device catches a cellular or Wi-Fi signal.");
+    toast.success("Order queued! Will auto-trigger on network connection.");
   };
 
   const pollStatus = (ref: string) => {
@@ -209,22 +239,44 @@ export function UnifiedCheckout({ order, onEditDetails, onSuccess }: UnifiedChec
         >
           Edit Details
         </Button>
-        <Button 
-          onClick={handlePay} 
-          disabled={isSubmitting || !isPayValid}
-          size="lg" 
-          className="bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-base sm:text-lg h-14 px-8 rounded-2xl shadow-xl shadow-emerald-500/20 disabled:opacity-50 transition-all active:scale-95"
-        >
-          {isSubmitting ? (
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 border-2 border-neutral-950 border-t-transparent rounded-full animate-spin"></div>
-              <span>Initiating STK Push...</span>
-            </div>
-          ) : (
-            `Pay KES ${totalAmount.toFixed(2)} with M-Pesa`
-          )}
-        </Button>
+
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            onClick={() => setShowOfflineModal(true)}
+            className="rounded-2xl border-amber-500/30 text-amber-400 hover:bg-amber-500/10 gap-1.5 text-xs sm:text-sm font-semibold"
+          >
+            <WifiOff className="w-4 h-4" /> Offline M-Pesa Options
+          </Button>
+
+          <Button 
+            onClick={handlePay} 
+            disabled={isSubmitting || !isPayValid}
+            size="lg" 
+            className="bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-base sm:text-lg h-14 px-8 rounded-2xl shadow-xl shadow-emerald-500/20 disabled:opacity-50 transition-all active:scale-95"
+          >
+            {isSubmitting ? (
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-neutral-950 border-t-transparent rounded-full animate-spin"></div>
+                <span>Initiating STK Push...</span>
+              </div>
+            ) : (
+              `Pay KES ${totalAmount.toFixed(2)} with M-Pesa`
+            )}
+          </Button>
+        </div>
       </div>
+
+      {showOfflineModal && (
+        <OfflinePaybillModal
+          order={order}
+          paymentPhone={paymentPhone}
+          onQueueSTK={handleQueueSTK}
+          onClose={() => setShowOfflineModal(false)}
+        />
+      )}
     </div>
   );
 }

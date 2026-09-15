@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { TransactionOrchestrator } from '@/lib/services/orchestrator';
 import { KyandaProvider } from '@/lib/providers/kyanda/provider';
+import { MpesaDarajaProvider } from '@/lib/providers/mpesa/provider';
+
+// Debounce map for outbound Daraja STK queries to avoid spamming Safaricom on fast status polling
+const lastDarajaQueryMap = new Map<string, number>();
+const DARAJA_QUERY_DEBOUNCE_MS = 15000; // Minimum 15s between STK queries for the same transaction
 
 // Basic in-memory rate limiter (Warning: Resets on serverless cold starts)
 const rateLimitMap = new Map<string, { count: number, resetAt: number }>();
@@ -61,8 +66,70 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ refe
       .maybeSingle();
 
     let currentStatus = tx.status;
-    let kyandaRef = tx.kyanda_reference;
-    let metadata: any = latestEvent?.details || {};
+    const kyandaRef = tx.kyanda_reference;
+    const metadata: any = latestEvent?.details || {};
+
+    // On-demand reconciliation for PAYMENT_PENDING (auto-resolve expired/declined prompts)
+    if (tx.status === 'PAYMENT_PENDING') {
+      const createdAt = new Date(tx.created_at).getTime();
+      const now = Date.now();
+      const ageMs = now - createdAt;
+
+      // Reconcile if prompt was initiated at least 45 seconds ago
+      if (ageMs > 45000) {
+        const lastQuery = lastDarajaQueryMap.get(tx.id) || 0;
+        if (now - lastQuery >= DARAJA_QUERY_DEBOUNCE_MS) {
+          lastDarajaQueryMap.set(tx.id, now);
+
+          if (!tx.payment_reference) {
+            if (ageMs > 3 * 60 * 1000) {
+              const orchestrator = new TransactionOrchestrator(supabase);
+              await orchestrator.updatePaymentState(
+                tx.id,
+                'PAYMENT_FAILED',
+                undefined,
+                'M-Pesa STK prompt was not dispatched or failed'
+              );
+              currentStatus = 'PAYMENT_FAILED';
+              tx.failure_reason = 'M-Pesa STK prompt was not dispatched or failed';
+            }
+          } else {
+            try {
+              console.log(`[On-Demand Reconciliation] Querying Daraja STK status for ${reference} (${tx.payment_reference})`);
+              const mpesaProvider = new MpesaDarajaProvider();
+              const queryRes = await mpesaProvider.querySTKStatus(tx.payment_reference);
+
+              const orchestrator = new TransactionOrchestrator(supabase);
+              if (queryRes.ResultCode === '0') {
+                console.log(`[On-Demand Reconciliation] STK status confirmed paid for ${reference}`);
+                await orchestrator.updatePaymentState(tx.id, 'PAYMENT_CONFIRMED', tx.payment_reference);
+                await orchestrator.authorizeVending(tx.id);
+                currentStatus = 'VENDING_PENDING';
+              } else {
+                const reason = queryRes.ResultDesc || 'M-Pesa payment prompt expired or declined';
+                console.log(`[On-Demand Reconciliation] STK status not paid for ${reference}: ResultCode ${queryRes.ResultCode} (${reason})`);
+                await orchestrator.updatePaymentState(tx.id, 'PAYMENT_FAILED', undefined, reason);
+                currentStatus = 'PAYMENT_FAILED';
+                tx.failure_reason = reason;
+              }
+            } catch (err: any) {
+              console.warn(`[On-Demand Reconciliation] Daraja query error for ${reference}:`, err.message);
+              if (ageMs > 5 * 60 * 1000) {
+                const orchestrator = new TransactionOrchestrator(supabase);
+                await orchestrator.updatePaymentState(
+                  tx.id,
+                  'PAYMENT_FAILED',
+                  undefined,
+                  'M-Pesa payment prompt expired (5m timeout)'
+                );
+                currentStatus = 'PAYMENT_FAILED';
+                tx.failure_reason = 'M-Pesa payment prompt expired (5m timeout)';
+              }
+            }
+          }
+        }
+      }
+    }
 
     // On-demand reconciliation for VENDING_PENDING
     if (tx.status === 'VENDING_PENDING' && tx.kyanda_reference) {

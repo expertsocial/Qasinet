@@ -1,13 +1,19 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { TransactionOrchestrator } from './orchestrator';
 import { KyandaProvider } from '../providers/kyanda/provider';
+import { MpesaDarajaProvider } from '../providers/mpesa/provider';
 
 export class ReconciliationService {
+  private readonly mpesaProvider: MpesaDarajaProvider;
+
   constructor(
     private readonly supabase: SupabaseClient,
     private readonly orchestrator: TransactionOrchestrator,
-    private readonly kyandaProvider: KyandaProvider
-  ) {}
+    private readonly kyandaProvider: KyandaProvider,
+    mpesaProvider?: MpesaDarajaProvider
+  ) {
+    this.mpesaProvider = mpesaProvider || new MpesaDarajaProvider();
+  }
 
   public async reconcilePendingTransactions() {
     console.log('[Reconciliation] Starting run...');
@@ -24,19 +30,14 @@ export class ReconciliationService {
       .lte('created_at', fiveMinAgo)
       .limit(50); // Process in batches
 
-    if (error || !pendingTxs) {
+    if (error) {
       console.error('[Reconciliation] Failed to fetch pending txs:', error);
-      return;
-    }
+    } else if (!pendingTxs || pendingTxs.length === 0) {
+      console.log('[Reconciliation] No VENDING_PENDING transactions to reconcile.');
+    } else {
+      const now = new Date();
 
-    if (pendingTxs.length === 0) {
-      console.log('[Reconciliation] No pending transactions to reconcile.');
-      return;
-    }
-
-    const now = new Date();
-
-    for (const tx of pendingTxs) {
+      for (const tx of pendingTxs) {
       // Respect exponential backoff schedule
       if (tx.next_retry_at && new Date(tx.next_retry_at) > now) {
         continue; 
@@ -143,7 +144,112 @@ export class ReconciliationService {
         // We will retry next time.
       }
     }
+  }
+
+    // Also reconcile stale PAYMENT_PENDING transactions
+    await this.reconcileStalePaymentPendingTransactions();
 
     console.log('[Reconciliation] Run complete.');
+  }
+
+  /**
+   * Reconciles transactions stuck in PAYMENT_PENDING for 90+ seconds by querying Daraja STK status.
+   * If payment succeeded, transitions to PAYMENT_CONFIRMED.
+   * If cancelled, timed out, or failed, transitions cleanly to PAYMENT_FAILED with exact reason.
+   */
+  public async reconcileStalePaymentPendingTransactions() {
+    console.log('[Reconciliation] Checking stale PAYMENT_PENDING transactions...');
+    const ninetySecsAgo = new Date(Date.now() - 90 * 1000).toISOString();
+
+    const { data: pendingTxs, error } = await this.supabase
+      .from('transactions')
+      .select('id, qsn_reference, payment_reference, status, created_at')
+      .eq('status', 'PAYMENT_PENDING')
+      .lte('created_at', ninetySecsAgo)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error || !pendingTxs) {
+      console.error('[Reconciliation] Failed to fetch stale PAYMENT_PENDING txs:', error);
+      return;
+    }
+
+    if (pendingTxs.length === 0) {
+      console.log('[Reconciliation] No stale PAYMENT_PENDING transactions found.');
+      return;
+    }
+
+    console.log(`[Reconciliation] Found ${pendingTxs.length} stale PAYMENT_PENDING transaction(s) to reconcile.`);
+
+    for (const tx of pendingTxs) {
+      try {
+        const ageMs = Date.now() - new Date(tx.created_at).getTime();
+
+        if (!tx.payment_reference) {
+          // If older than 3 minutes without a payment reference (STK dispatch never completed)
+          if (ageMs > 3 * 60 * 1000) {
+            console.warn(`[Reconciliation] TX ${tx.id} (${tx.qsn_reference}) has no payment_reference after 3m. Marking PAYMENT_FAILED.`);
+            await this.orchestrator.updatePaymentState(
+              tx.id,
+              'PAYMENT_FAILED',
+              undefined,
+              'M-Pesa STK prompt was not dispatched or failed'
+            );
+          }
+          continue;
+        }
+
+        // Fast-path: If transaction is older than 15 minutes, Safaricom STK prompt is definitively
+        // dead (USSD lifetime is <= 120s). Do not query Daraja for stale transactions from hours/days ago,
+        // as Daraja query will hang or reject purged CheckoutRequestIDs.
+        if (ageMs > 15 * 60 * 1000) {
+          console.log(`[Reconciliation] TX ${tx.id} (${tx.qsn_reference}) is older than 15m. Marking PAYMENT_FAILED directly.`);
+          await this.orchestrator.updatePaymentState(
+            tx.id,
+            'PAYMENT_FAILED',
+            undefined,
+            'M-Pesa payment prompt expired (15m timeout)'
+          );
+          continue;
+        }
+
+        try {
+          console.log(`[Reconciliation] Querying Daraja for TX ${tx.id} (${tx.qsn_reference}, CheckoutRequestID: ${tx.payment_reference})`);
+          const queryRes = await this.mpesaProvider.querySTKStatus(tx.payment_reference);
+
+          if (queryRes.ResultCode === '0') {
+            console.log(`[Reconciliation] Payment confirmed on Daraja for TX ${tx.id}. Transitioning to PAYMENT_CONFIRMED.`);
+            await this.orchestrator.updatePaymentState(tx.id, 'PAYMENT_CONFIRMED', tx.payment_reference);
+            await this.orchestrator.authorizeVending(tx.id);
+          } else {
+            // ResultCode != 0 (e.g. 1032 user cancelled, 1037 timeout, 1 insufficient balance, 4999 duplicated session)
+            const reason = queryRes.ResultDesc || 'M-Pesa payment prompt expired or declined';
+            console.log(`[Reconciliation] Daraja STK status for TX ${tx.id}: ResultCode ${queryRes.ResultCode} (${reason}). Marking PAYMENT_FAILED.`);
+            await this.orchestrator.updatePaymentState(
+              tx.id,
+              'PAYMENT_FAILED',
+              undefined,
+              reason
+            );
+          }
+        } catch (err: any) {
+          const errorMsg = err?.message || String(err);
+          console.warn(`[Reconciliation] Daraja query error for TX ${tx.id}:`, errorMsg);
+
+          // If older than 5 minutes, force-resolve as PAYMENT_FAILED so customer is never stuck indefinitely
+          if (ageMs > 5 * 60 * 1000) {
+            console.warn(`[Reconciliation] TX ${tx.id} (${tx.qsn_reference}) in PAYMENT_PENDING exceeded 5m cutoff. Marking PAYMENT_FAILED.`);
+            await this.orchestrator.updatePaymentState(
+              tx.id,
+              'PAYMENT_FAILED',
+              undefined,
+              'M-Pesa payment prompt expired (5m timeout)'
+            );
+          }
+        }
+      } catch (txErr: any) {
+        console.error(`[Reconciliation] Failed to reconcile TX ${tx.id}:`, txErr?.message || txErr);
+      }
+    }
   }
 }

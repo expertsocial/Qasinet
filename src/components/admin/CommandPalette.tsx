@@ -83,6 +83,12 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
     return () => clearTimeout(timer);
   }, [query]);
 
+  const handleSelect = (url: string) => {
+    sounds.playTap();
+    onClose();
+    router.push(url);
+  };
+
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -111,12 +117,6 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, results, selectedIndex]);
-
-  const handleSelect = (url: string) => {
-    sounds.playTap();
-    onClose();
-    router.push(url);
-  };
 
   if (!isOpen) return null;
 

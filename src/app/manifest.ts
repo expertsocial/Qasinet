@@ -7,8 +7,10 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'Instant Airtime, High-speed Data Bundles, Electricity & Utility Payments in Kenya',
     start_url: '/',
     display: 'standalone',
-    background_color: '#ffffff',
+    orientation: 'portrait-primary',
+    background_color: '#0a0a0a',
     theme_color: '#10b981',
+    categories: ['utilities', 'finance', 'shopping'],
     icons: [
       {
         src: '/icon.jpeg',
@@ -19,6 +21,29 @@ export default function manifest(): MetadataRoute.Manifest {
         src: '/icon.jpeg',
         sizes: '512x512',
         type: 'image/jpeg',
+      },
+    ],
+    shortcuts: [
+      {
+        name: 'Buy Data Bundles',
+        short_name: 'Bundles',
+        description: 'Browse & buy discounted Safaricom, Airtel, and Faiba data bundles',
+        url: '/services/data',
+        icons: [{ src: '/icon.jpeg', sizes: '192x192' }],
+      },
+      {
+        name: 'Buy Airtime',
+        short_name: 'Airtime',
+        description: 'Top up Safaricom, Airtel, Telkom, or Equitel airtime',
+        url: '/services/airtime',
+        icons: [{ src: '/icon.jpeg', sizes: '192x192' }],
+      },
+      {
+        name: 'Electricity Tokens',
+        short_name: 'Tokens',
+        description: 'KPLC prepaid electricity tokens and postpaid bill payment',
+        url: '/services/electricity',
+        icons: [{ src: '/icon.jpeg', sizes: '192x192' }],
       },
     ],
   };

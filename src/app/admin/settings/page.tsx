@@ -1,9 +1,13 @@
 import { createClient } from '@/lib/supabase/server';
 import { Settings } from 'lucide-react';
 import SettingsFormClient from './SettingsFormClient';
+import { getAdminProfile } from '@/lib/auth/admin-account';
 
 export default async function AdminSettingsPage() {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const adminProfile = user ? await getAdminProfile(user.id) : null;
 
   const { data: settings } = await supabase
     .from('system_settings')
@@ -39,18 +43,18 @@ export default async function AdminSettingsPage() {
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
             <Settings className="text-blue-500" />
-            System Settings
+            System & Account Settings
           </h1>
-          <p className="text-neutral-400 mt-1">Manage global application configuration and integrations.</p>
+          <p className="text-neutral-400 mt-1">Manage administrator account credentials, system settings, and integrations.</p>
         </div>
       </div>
 
       <SettingsFormClient 
+        adminProfile={adminProfile}
         generalConfig={generalConfig} 
         kyandaConfig={kyandaConfig} 
         resendConfig={resendConfig}
       />
     </div>
   );
-
 }

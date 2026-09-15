@@ -43,7 +43,7 @@ export async function GET(req: Request) {
           body: JSON.stringify(payload)
         });
 
-        let bodyText = await res.text();
+        const bodyText = await res.text();
         let parsedJson: any = null;
         try {
           parsedJson = JSON.parse(bodyText);

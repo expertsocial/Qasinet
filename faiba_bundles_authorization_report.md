@@ -30,6 +30,7 @@ Live test calls were dispatched to `https://api.kyanda.app/billing/v1/airtime/cr
 | **Monthly** | Monthly 15GB | `Monthly_15GB` | 500 | `400` | `1107` | `Insufficient Funds!` | `QASOFLAPI4984376` | **Authorized** — reached float check |
 
 Additionally, running the team verification utility `npm run check:faiba-bundles` confirms:
+
 ```text
 ===========================================================
   KYANDA FAIBA BUNDLE (FAIBA_B) AUTHORIZATION STATUS CHECK
@@ -83,6 +84,7 @@ The stale catalog has been completely removed and replaced in `src/lib/constants
 ## 4. Cryptographic Signature Confirmation
 
 As explicitly confirmed in `src/lib/providers/kyanda/signature.ts`:
+
 - **HMAC Signature Formula:** `HMAC-SHA256(amount + phone + telco + initiatorPhone + merchantId, securityKey)`
 - `productCode` is **NOT** included in the signature string.
 - `signature` is **NOT** included in the signature string.
@@ -93,6 +95,7 @@ As explicitly confirmed in `src/lib/providers/kyanda/signature.ts`:
 ## 5. Amount Bounds & Validation Enhancements
 
 Per Kyanda's documented Airtime/Bundle constraints (`2 < amount < 7000` and whole-number requirement):
+
 1. **Client-side & Zod Schema (`src/lib/validations/transaction.ts`):**
    - Added refinement for airtime and data services validating that `amount` is an integer, `> 2` and `< 7000`.
 2. **Provider Guard (`src/lib/providers/kyanda/provider.ts`):**
@@ -115,7 +118,7 @@ In `src/lib/providers/kyanda/errors.ts` and `src/lib/errors.ts`:
 | `3101` | `VALIDATION_ERROR` | *Invalid telco prefix.* | Newly documented telco prefix error |
 | `9002` | `VALIDATION_ERROR` | *Invalid transaction channel / productCode.* | Preserved with dynamic gateway message |
 | `8003` | `PROVIDER_ERROR` | *Invalid Telco: Channel code configuration may be incorrect.* | Preserved |
-| `8006` / `9005`| `DUPLICATE_REQUEST` | *Duplicate transmission.* | Preserved |
+| `8006` / `9005` | `DUPLICATE_REQUEST` | *Duplicate transmission.* | Preserved |
 
 ---
 
@@ -151,7 +154,8 @@ To independently verify Kyanda's documented constraint that *the amount must str
 | **Mismatched Amount 2** | `fisihour3` | KES 50 | **KES 60** | **400** | **9002** | `"Amount must be 50 for productCode fisihour3."` | *None* | **REJECTED PRE-FLOAT.** Confirms uniform catalog validation across time-based bundles. |
 | **Matched Amount (Baseline)** | `DAILY_500MB` | KES 20 | **KES 20** | **400** | **1107** | `"Insufficient Funds!"` | `QASOFLAPI86279507` | **AUTHORIZED.** Exact price passes catalog validation and reaches float check with a valid transaction reference. |
 
-### Key Discovery:
+### Key Discovery
+
 1. `9002` is Kyanda's generalized code for both non-existent product codes AND mismatched price payloads.
 2. The gateway will never silently accept or misbill an incorrect price for a bundle.
 
@@ -163,4 +167,3 @@ To independently verify Kyanda's documented constraint that *the amount must str
 - **Production Build:** `npm run build` compiled successfully with **0 TypeScript errors** across all 44 routes.
 - **Feature Flag:** `NEXT_PUBLIC_ENABLE_FAIBA_BUNDLES=true` enabled in `.env.local`.
 - **End-to-End Live Purchase Queue:** Live successful bundle purchase + IPN receipt generation is queued for execution once merchant account float is funded.
-

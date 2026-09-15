@@ -87,8 +87,31 @@ export const SERVICE_TEST_DEFINITIONS = [
   },
 
   // --------------------------------------------------------------------------
-  // Mobile Data Bundles (Faiba 4G)
   // --------------------------------------------------------------------------
+  // Mobile Data Bundles (Safaricom, Airtel, Faiba 4G)
+  // --------------------------------------------------------------------------
+  {
+    serviceSlug: 'safaricom-data',
+    name: 'Safaricom Super Bundle',
+    category: 'data',
+    amount: 20,
+    productId: 'DAILY_150MB_1HR',
+    destinationType: 'paying_phone',
+    defaultDestination: null,
+    hasKnownGoodTestAccount: true,
+    notes: 'Vends 150MB Safaricom bundle via Reseller API directly to paying test phone.',
+  },
+  {
+    serviceSlug: 'airtel-data',
+    name: 'Airtel Bamba Bundle',
+    category: 'data',
+    amount: 20,
+    productId: 'AIR_300MB_24H',
+    destinationType: 'custom_phone',
+    defaultDestination: '0733000000',
+    hasKnownGoodTestAccount: false,
+    notes: 'Requires active Airtel SIM line. Override via --dest-airtel=07XXXXXXXX.',
+  },
   {
     serviceSlug: 'faiba-data',
     name: 'Faiba 4G Data Package',
@@ -161,7 +184,7 @@ export const SERVICE_TEST_DEFINITIONS = [
   },
 
   // --------------------------------------------------------------------------
-  // Electricity (Paused Services - Included to verify registry pause detection)
+  // Electricity (KPLC Prepaid Tokens & Postpaid Bill)
   // --------------------------------------------------------------------------
   {
     serviceSlug: 'kplc-prepaid',
@@ -171,7 +194,7 @@ export const SERVICE_TEST_DEFINITIONS = [
     destinationType: 'account_number',
     defaultDestination: '14123456789',
     hasKnownGoodTestAccount: false,
-    notes: 'PAUSED IN REGISTRY. Must be automatically skipped by harness.',
+    notes: 'Active. Meter number 14123456789 (override via --dest-kplc=meter).',
   },
   {
     serviceSlug: 'kplc-postpaid',
@@ -181,6 +204,6 @@ export const SERVICE_TEST_DEFINITIONS = [
     destinationType: 'account_number',
     defaultDestination: '1234567',
     hasKnownGoodTestAccount: false,
-    notes: 'PAUSED IN REGISTRY. Must be automatically skipped by harness.',
+    notes: 'Active. Account 1234567 (override via --dest-kplc-postpaid=account).',
   },
 ];

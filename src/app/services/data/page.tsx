@@ -1,85 +1,169 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useMemo, Suspense } from "react";
 import Image from "next/image";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { PhoneInput } from "@/components/services/PhoneInput";
 import { UnifiedCheckout } from "@/components/checkout/UnifiedCheckout";
 import { OrderPayload } from "@/lib/payment";
 import { Button, buttonVariants } from "@/components/ui/Button";
-import { ArrowLeft, ArrowRight, Wifi, RefreshCw, AlertTriangle, ExternalLink, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Wifi, RefreshCw, AlertTriangle, ExternalLink, Sparkles, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { isValidKenyanPhone } from "@/lib/validation";
 import { detectCarrier } from "@/lib/carrier";
 import { useAuth } from "@/lib/auth";
 import { getRememberedServiceDestination } from "@/lib/beneficiaries";
-import { FAIBA_DATA_BUNDLES, FaibaBundle, IS_FAIBA_BUNDLES_ENABLED } from "@/lib/constants/faiba-bundles";
+import { FAIBA_DATA_BUNDLES, IS_FAIBA_BUNDLES_ENABLED } from "@/lib/constants/faiba-bundles";
+import { SAFARICOM_DATA_BUNDLES } from "@/lib/constants/safaricom-bundles";
+import { AIRTEL_DATA_BUNDLES } from "@/lib/constants/airtel-bundles";
 
 type Step = 1 | 2 | 3 | 4 | 5;
+type SupportedNetwork = "safaricom" | "airtel" | "faiba";
 
 interface ProviderNetwork {
-  id: string;
+  id: "safaricom" | "airtel" | "faiba" | "telkom" | "equitel";
   name: string;
   logoSrc: string;
   supported: boolean;
   note?: string;
+  serviceId: string;
+  badge?: string;
 }
 
 const NETWORKS: ProviderNetwork[] = [
-  { id: "faiba", name: "Faiba 4G", logoSrc: "/logos/faiba-logo.png", supported: true, note: "19 Bundles Available" },
-  { id: "safaricom", name: "Safaricom", logoSrc: "/logos/safaricom-logo.png", supported: false, note: "Coming Soon" },
-  { id: "airtel", name: "Airtel", logoSrc: "/logos/airtel-logo.jpg", supported: false, note: "Coming Soon" },
-  { id: "telkom", name: "Telkom", logoSrc: "/logos/telcom-logo.png", supported: false, note: "Coming Soon" },
-  { id: "equitel", name: "Equitel", logoSrc: "/logos/equitel-logo.jpg", supported: false, note: "Coming Soon" },
+  { id: "safaricom", name: "Safaricom", logoSrc: "/logos/safaricom-logo.png", supported: true, note: "🔥 Super Bundles", serviceId: "safaricom-data", badge: "Okoa Friendly" },
+  { id: "airtel", name: "Airtel", logoSrc: "/logos/airtel-logo.jpg", supported: true, note: "⚡ High-Speed", serviceId: "airtel-data", badge: "Best Rates" },
+  { id: "faiba", name: "Faiba 4G", logoSrc: "/logos/faiba-logo.png", supported: true, note: "📶 Unlimited & Data", serviceId: "faiba-data", badge: "High Speed" },
+  { id: "telkom", name: "Telkom", logoSrc: "/logos/telcom-logo.png", supported: false, note: "Coming Soon", serviceId: "telkom-data" },
+  { id: "equitel", name: "Equitel", logoSrc: "/logos/equitel-logo.jpg", supported: false, note: "Coming Soon", serviceId: "equitel-data" },
 ];
 
+export interface UnifiedBundleItem {
+  id?: string;
+  code: string;
+  name: string;
+  price: number;
+  validity: string;
+  allowance: string;
+  badge?: string;
+  popular?: boolean;
+  category?: string;
+  description?: string;
+}
+
 function DataContent() {
-  const router = useRouter();
-  const [step, setStep] = useState<Step>(1);
-  const [selectedNetwork, setSelectedNetwork] = useState<string>("faiba");
-  const [phone, setPhone] = useState("");
-  const [isPhoneValid, setIsPhoneValid] = useState(false);
-  const [selectedBundle, setSelectedBundle] = useState<FaibaBundle | null>(null);
   const searchParams = useSearchParams();
   const { user } = useAuth();
 
-  // Load URL phone param, remembered phone, or user phone
-  useEffect(() => {
+  const [step, setStep] = useState<Step>(1);
+
+  const [selectedNetwork, setSelectedNetwork] = useState<SupportedNetwork>(() => {
+    const netParam = searchParams.get("network") || searchParams.get("provider");
+    if (netParam) {
+      const lower = netParam.toLowerCase();
+      if (lower.includes("safaricom")) return "safaricom";
+      if (lower.includes("airtel")) return "airtel";
+      if (lower.includes("faiba")) return "faiba";
+    }
+    return "safaricom";
+  });
+
+  const [phone, setPhone] = useState<string>(() => {
     const urlPhone = searchParams.get("phone");
-    if (urlPhone && isValidKenyanPhone(urlPhone)) {
-      setPhone(urlPhone);
-      setIsPhoneValid(true);
-      return;
-    }
+    if (urlPhone && isValidKenyanPhone(urlPhone)) return urlPhone;
+    return "";
+  });
 
-    const remembered = getRememberedServiceDestination("data") || getRememberedServiceDestination("airtime");
-    if (remembered && isValidKenyanPhone(remembered.destination)) {
-      setPhone(remembered.destination);
-      setIsPhoneValid(true);
-      return;
-    }
+  const [isPhoneValid, setIsPhoneValid] = useState<boolean>(() => {
+    const urlPhone = searchParams.get("phone");
+    return Boolean(urlPhone && isValidKenyanPhone(urlPhone));
+  });
 
-    if (user?.phone && isValidKenyanPhone(user.phone)) {
-      setPhone(user.phone);
-      setIsPhoneValid(true);
+  const [selectedBundle, setSelectedBundle] = useState<UnifiedBundleItem | null>(null);
+  const [activeCategory, setActiveCategory] = useState<string>("all");
+
+  // Load remembered destination or user phone if none provided via URL
+  useEffect(() => {
+    if (phone) return;
+    const timer = setTimeout(() => {
+      const remembered = getRememberedServiceDestination("data") || getRememberedServiceDestination("airtime");
+      if (remembered && isValidKenyanPhone(remembered.destination)) {
+        setPhone(remembered.destination);
+        setIsPhoneValid(true);
+        return;
+      }
+      if (user?.phone && isValidKenyanPhone(user.phone)) {
+        setPhone(user.phone);
+        setIsPhoneValid(true);
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [phone, user]);
+
+  const currentNetworkConfig = NETWORKS.find((n) => n.id === selectedNetwork) || NETWORKS[0];
+
+  // Resolve bundle list for currently selected network
+  const availableBundles = useMemo<UnifiedBundleItem[]>(() => {
+    if (selectedNetwork === "safaricom") {
+      return SAFARICOM_DATA_BUNDLES.map((b) => ({
+        id: b.code,
+        name: b.name,
+        code: b.code,
+        price: b.price,
+        validity: b.validity,
+        allowance: b.allowance,
+        badge: b.badge,
+        popular: b.popular,
+        category: b.category,
+        description: b.description,
+      }));
+    } else if (selectedNetwork === "airtel") {
+      return AIRTEL_DATA_BUNDLES.map((b) => ({
+        id: b.code,
+        name: b.name,
+        code: b.code,
+        price: b.price,
+        validity: b.validity,
+        allowance: b.allowance,
+        badge: b.badge,
+        popular: b.popular,
+        category: b.category,
+        description: b.description,
+      }));
+    } else {
+      return FAIBA_DATA_BUNDLES.map((b) => ({
+        id: b.code,
+        name: b.name,
+        code: b.code,
+        price: b.price,
+        validity: b.validity,
+        allowance: b.allowance,
+        category: "daily",
+      }));
     }
-  }, [searchParams, user]);
+  }, [selectedNetwork]);
+
+  // Filtered bundles by category tab
+  const filteredBundles = useMemo(() => {
+    if (activeCategory === "all") return availableBundles;
+    if (activeCategory === "popular") return availableBundles.filter((b) => b.popular);
+    return availableBundles.filter((b) => b.category === activeCategory);
+  }, [availableBundles, activeCategory]);
 
   const handleNext = () => setStep((s) => Math.min(s + 1, 5) as Step);
   const handleBack = () => setStep((s) => Math.max(s - 1, 1) as Step);
 
   const detectedCarrier = detectCarrier(phone);
-  const isCarrierNonFaiba = detectedCarrier.name !== "UNKNOWN" && detectedCarrier.name !== "FAIBA";
 
-  const isStep1Valid = selectedNetwork === "faiba";
+  const isStep1Valid = selectedNetwork === "safaricom" || selectedNetwork === "airtel" || selectedNetwork === "faiba";
   const isStep2Valid = isPhoneValid;
-  const isStep3Valid = IS_FAIBA_BUNDLES_ENABLED && selectedBundle !== null && selectedBundle.price > 2 && selectedBundle.price < 7000 && Number.isInteger(selectedBundle.price);
+  const isStep3Valid = selectedBundle !== null && selectedBundle.price > 2 && selectedBundle.price < 7000 && Number.isInteger(selectedBundle.price);
 
   const orderPayload: OrderPayload = {
-    serviceId: "faiba-data",
-    serviceName: `Faiba ${selectedBundle?.name || "Data Bundle"}`,
-    provider: "Faiba",
+    serviceId: currentNetworkConfig.serviceId,
+    serviceName: `${currentNetworkConfig.name} ${selectedBundle?.name || "Data Bundle"}`,
+    provider: currentNetworkConfig.name,
     productId: selectedBundle?.code,
     destination: phone,
     amount: selectedBundle?.price || 0,
@@ -88,8 +172,8 @@ function DataContent() {
     metadata: {
       package: selectedBundle ? `${selectedBundle.name} (${selectedBundle.allowance})` : "",
       validity: selectedBundle?.validity,
-      productCode: selectedBundle?.code
-    }
+      productCode: selectedBundle?.code,
+    },
   };
 
   return (
@@ -110,10 +194,10 @@ function DataContent() {
               <div className="p-2.5 bg-primary/10 rounded-xl text-primary">
                 <Wifi className="w-6 h-6" />
               </div>
-              <h1 className="text-3xl font-bold">Buy Faiba 4G Data Bundles</h1>
+              <h1 className="text-3xl font-bold">Buy Internet Data Bundles</h1>
             </div>
             <p className="text-muted-foreground">
-              Official high-speed data packages for Faiba 4G lines. (Safaricom, Airtel & Telkom bundles coming soon).
+              Instant high-speed Safaricom, Airtel & Faiba 4G bundles with automatic M-Pesa delivery.
             </p>
           </div>
         )}
@@ -142,12 +226,12 @@ function DataContent() {
             <div className="bg-card border border-border/50 rounded-3xl p-6 md:p-8 shadow-sm">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-xl font-semibold">Select Network</h2>
-                <span className="text-xs font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-full flex items-center gap-1">
-                  <Sparkles className="w-3 h-3" /> Faiba Exclusive
+                <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full flex items-center gap-1">
+                  <Sparkles className="w-3 h-3" /> 3 Networks Active
                 </span>
               </div>
               <p className="text-xs text-muted-foreground mb-6">
-                Data bundle vending is currently supported exclusively for Faiba 4G. Non-Faiba networks are coming soon.
+                Choose the mobile network for your recipient. Special discounted bundles are active for Safaricom and Airtel lines.
               </p>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -159,8 +243,9 @@ function DataContent() {
                       type="button"
                       disabled={!net.supported}
                       onClick={() => {
-                        if (net.supported) {
+                        if (net.id === "safaricom" || net.id === "airtel" || net.id === "faiba") {
                           setSelectedNetwork(net.id);
+                          setSelectedBundle(null);
                           setTimeout(handleNext, 250);
                         }
                       }}
@@ -205,11 +290,11 @@ function DataContent() {
                 })}
               </div>
 
-              {/* Informative helper note for non-Faiba networks */}
+              {/* Informative helper note */}
               <div className="mt-6 p-4 rounded-2xl bg-secondary/40 border border-border/50 text-xs text-muted-foreground flex items-center justify-between gap-3">
                 <div>
-                  <span className="font-semibold text-foreground">Looking to top-up Safaricom, Airtel, Telkom, or Equitel?</span>
-                  <p className="text-[11px] mt-0.5">Airtime top-up is 100% active and available across all 5 Kenyan networks.</p>
+                  <span className="font-semibold text-foreground">Need Airtime Top-Up Instead?</span>
+                  <p className="text-[11px] mt-0.5">Airtime top-up is 100% active across all 5 Kenyan mobile networks with zero fees.</p>
                 </div>
                 <Link 
                   href="/services/airtime"
@@ -234,7 +319,9 @@ function DataContent() {
             <div className="bg-card border border-border/50 rounded-3xl p-6 md:p-8 shadow-sm space-y-6">
               <div>
                 <h2 className="text-xl font-semibold mb-1">Recipient Details</h2>
-                <p className="text-sm text-muted-foreground">Enter the Faiba 4G phone number (0747...) to receive the data bundle.</p>
+                <p className="text-sm text-muted-foreground">
+                  Enter the {currentNetworkConfig.name} mobile number to receive the bundle.
+                </p>
               </div>
               
               <PhoneInput 
@@ -243,35 +330,83 @@ function DataContent() {
                 onValidationChange={setIsPhoneValid}
               />
 
-              {/* Carrier mismatch warning if user typed a Safaricom/Airtel/Telkom number */}
-              {isCarrierNonFaiba && (
-                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs space-y-2">
-                  <div className="flex items-center gap-2 font-bold text-sm text-amber-400">
-                    <AlertTriangle className="w-4 h-4 shrink-0" />
-                    <span>Non-Faiba Number Detected ({detectedCarrier.name})</span>
-                  </div>
-                  <p className="text-neutral-300 leading-relaxed">
-                    Data bundles on Qasinet are currently exclusive to Faiba 4G lines (0747...). Direct data bundles for {detectedCarrier.name} are not supported by the gateway yet.
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => router.push(`/services/airtime?phone=${phone}`)}
-                    className="text-xs font-bold text-primary border-primary/40 hover:bg-primary/10"
-                  >
-                    Switch to {detectedCarrier.name} Airtime Top-Up Instead →
-                  </Button>
+              {/* Special Safaricom Okoa Jahazi Friendly Reassurance */}
+              {selectedNetwork === "safaricom" && (
+                <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                  <span><strong>Okoa Jahazi Friendly:</strong> Bundles activate immediately on Safaricom even if the recipient owes an active Okoa loan.</span>
                 </div>
               )}
 
-              {/* Active Network Preview Badge Card */}
-              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-secondary/40 border border-border/50">
+              {/* Carrier mismatch alert */}
+              {detectedCarrier.name !== "UNKNOWN" && (
+                <>
+                  {selectedNetwork === "safaricom" && detectedCarrier.name !== "SAFARICOM" && (
+                    <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+                        <span>Detected as {detectedCarrier.name} line. Switch network?</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (detectedCarrier.name === "AIRTEL") setSelectedNetwork("airtel");
+                          else if (detectedCarrier.name === "FAIBA") setSelectedNetwork("faiba");
+                        }}
+                        className="text-xs font-bold text-amber-400 underline shrink-0"
+                      >
+                        Switch Network
+                      </button>
+                    </div>
+                  )}
+
+                  {selectedNetwork === "airtel" && detectedCarrier.name !== "AIRTEL" && (
+                    <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+                        <span>Detected as {detectedCarrier.name} line. Switch network?</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (detectedCarrier.name === "SAFARICOM") setSelectedNetwork("safaricom");
+                          else if (detectedCarrier.name === "FAIBA") setSelectedNetwork("faiba");
+                        }}
+                        className="text-xs font-bold text-amber-400 underline shrink-0"
+                      >
+                        Switch Network
+                      </button>
+                    </div>
+                  )}
+
+                  {selectedNetwork === "faiba" && detectedCarrier.name !== "FAIBA" && (
+                    <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+                        <span>Entered phone is a {detectedCarrier.name} number (Faiba lines usually start with 0747).</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (detectedCarrier.name === "SAFARICOM") setSelectedNetwork("safaricom");
+                          else if (detectedCarrier.name === "AIRTEL") setSelectedNetwork("airtel");
+                        }}
+                        className="text-xs font-bold text-amber-400 underline shrink-0"
+                      >
+                        Switch Network
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Selected Network Summary Card */}
+              <div className="flex items-center justify-between p-4 rounded-2xl bg-secondary/30 border border-border/40">
                 <div className="flex items-center gap-3">
                   <div className="relative w-8 h-8 rounded-lg overflow-hidden bg-white shrink-0 p-1 flex items-center justify-center border border-border/40">
                     <Image 
-                      src="/logos/faiba-logo.png" 
-                      alt="Faiba 4G" 
+                      src={currentNetworkConfig.logoSrc} 
+                      alt={currentNetworkConfig.name} 
                       fill 
                       sizes="32px"
                       className="object-contain p-0.5" 
@@ -280,12 +415,7 @@ function DataContent() {
                   <div>
                     <span className="text-xs text-muted-foreground">Destination Network</span>
                     <p className="text-sm font-bold text-foreground flex items-center gap-1.5">
-                      Faiba 4G Kenya
-                      {detectedCarrier.name === "FAIBA" && (
-                        <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20">
-                          Faiba Number Verified
-                        </span>
-                      )}
+                      {currentNetworkConfig.name} Kenya
                     </p>
                   </div>
                 </div>
@@ -323,8 +453,8 @@ function DataContent() {
               <div className="flex items-center gap-2.5">
                 <div className="relative w-6 h-6 rounded-md overflow-hidden bg-white shrink-0">
                   <Image 
-                    src="/logos/faiba-logo.png" 
-                    alt="Faiba 4G" 
+                    src={currentNetworkConfig.logoSrc} 
+                    alt={currentNetworkConfig.name} 
                     fill 
                     sizes="24px"
                     className="object-contain p-0.5" 
@@ -333,8 +463,8 @@ function DataContent() {
                 <div className="text-xs">
                   <span className="text-muted-foreground">Recipient: </span>
                   <strong className="text-foreground font-mono">{phone}</strong>
-                  <span className="ml-2 px-1.5 py-0.2 rounded text-[10px] font-bold border text-cyan-400 bg-cyan-500/10 border-cyan-500/20">
-                    Faiba 4G
+                  <span className="ml-2 px-1.5 py-0.2 rounded text-[10px] font-bold border text-primary bg-primary/10 border-primary/20">
+                    {currentNetworkConfig.name}
                   </span>
                 </div>
               </div>
@@ -349,35 +479,57 @@ function DataContent() {
 
             <div className="bg-card border border-border/50 rounded-3xl p-6 md:p-8 shadow-sm">
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-xl font-semibold">Select Faiba 4G Package</h2>
-                <span className="text-xs text-muted-foreground font-medium">{FAIBA_DATA_BUNDLES.length} Packages Available</span>
+                <h2 className="text-xl font-semibold">Select {currentNetworkConfig.name} Package</h2>
+                <span className="text-xs text-muted-foreground font-medium">{availableBundles.length} Bundles Available</span>
               </div>
-              <p className="text-xs text-muted-foreground mb-6">
-                Choose an official published Faiba data bundle or combo package.
+              <p className="text-xs text-muted-foreground mb-4">
+                Choose from our popular discounted data bundles and combos with instant network delivery.
               </p>
 
-              {/* Provider Authorization State Banner */}
-              {!IS_FAIBA_BUNDLES_ENABLED && (
-                <div className="p-4 mb-6 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs space-y-2">
-                  <div className="flex items-center gap-2 font-bold text-sm text-amber-400">
-                    <AlertTriangle className="w-4 h-4 shrink-0" />
-                    <span>Faiba Bundle Checkout Temporarily Paused (Provider Activation)</span>
-                  </div>
-                  <p className="text-neutral-300 leading-relaxed">
-                    Faiba data bundle vending is undergoing provider-level authorization with Kyanda.
-                    Pinless Faiba Airtime is 100% active and can be purchased right now.
-                  </p>
-                  <Link 
-                    href={`/services/airtime?phone=${phone}&provider=faiba`} 
-                    className="inline-flex items-center gap-1 font-bold text-primary hover:underline pt-1"
-                  >
-                    Buy Faiba Airtime Top-Up Instead →
-                  </Link>
+              {/* Category Filter Pills (for Safaricom & Airtel) */}
+              {selectedNetwork !== "faiba" && (
+                <div className="flex flex-wrap gap-2 mb-6 pb-2 border-b border-border/40">
+                  {[
+                    { id: "all", label: "All Bundles" },
+                    { id: "popular", label: "🔥 Hot Deals" },
+                    { id: "daily", label: "⏱️ Daily / Midnight" },
+                    { id: "weekly", label: "📦 Weekly" },
+                    ...(selectedNetwork === "safaricom" ? [{ id: "voice_combo", label: "📞 Minutes & Combos" }] : []),
+                    { id: "monthly", label: "🚀 Monthly" },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActiveCategory(tab.id)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-full text-xs font-medium transition-all",
+                        activeCategory === tab.id
+                          ? "bg-primary text-primary-foreground font-bold shadow-xs"
+                          : "bg-secondary/60 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                      )}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
                 </div>
               )}
 
+              {/* Faiba specific pause note if applicable */}
+              {selectedNetwork === "faiba" && !IS_FAIBA_BUNDLES_ENABLED && (
+                <div className="p-4 mb-6 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-sm text-amber-400">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span>Faiba Bundle Checkout Temporarily Paused (Provider Maintenance)</span>
+                  </div>
+                  <p className="text-neutral-300 leading-relaxed">
+                    Faiba data bundles are undergoing maintenance. Safaricom and Airtel bundles are 100% active and available above.
+                  </p>
+                </div>
+              )}
+
+              {/* Bundles Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {FAIBA_DATA_BUNDLES.map((bundleItem) => {
+                {filteredBundles.map((bundleItem) => {
                   const isSelected = selectedBundle?.code === bundleItem.code;
                   return (
                     <button
@@ -385,7 +537,7 @@ function DataContent() {
                       type="button"
                       onClick={() => setSelectedBundle(bundleItem)}
                       className={cn(
-                        "flex flex-col p-4 rounded-2xl border text-left transition-all",
+                        "flex flex-col p-4 rounded-2xl border text-left transition-all relative overflow-hidden",
                         "hover:border-primary/50 hover:shadow-sm",
                         isSelected
                           ? "border-primary bg-primary/5 shadow-sm ring-1 ring-primary"
@@ -400,8 +552,21 @@ function DataContent() {
                           KES {bundleItem.price.toLocaleString()}
                         </span>
                       </div>
-                      <p className="text-lg font-bold text-foreground mb-0.5">{bundleItem.allowance}</p>
+                      
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <p className="text-lg font-bold text-foreground">{bundleItem.allowance}</p>
+                        {bundleItem.badge && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            {bundleItem.badge}
+                          </span>
+                        )}
+                      </div>
+
                       <p className="text-xs text-muted-foreground truncate">{bundleItem.name}</p>
+
+                      {bundleItem.description && (
+                        <p className="text-[11px] text-muted-foreground/80 mt-1 line-clamp-2">{bundleItem.description}</p>
+                      )}
                     </button>
                   );
                 })}
@@ -413,9 +578,7 @@ function DataContent() {
                 Back
               </Button>
               <Button onClick={handleNext} disabled={!isStep3Valid} size="lg">
-                {!IS_FAIBA_BUNDLES_ENABLED 
-                  ? "Checkout Paused (Awaiting Provider)" 
-                  : <>Continue <ArrowRight className="w-4 h-4 ml-2" /></>}
+                Continue to Payment <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
           </div>

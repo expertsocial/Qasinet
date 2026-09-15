@@ -47,7 +47,7 @@ export async function updateSession(request: NextRequest) {
       user.app_metadata?.role === 'ADMIN' ||
       user.app_metadata?.is_admin === true ||
       user.user_metadata?.role === 'ADMIN' ||
-      user.email === 'sanaregeorge08@gmail.com';
+      user.email === 'qasinetltd@gmail.com';
 
     if (!isAdmin) {
       const { data: adminCheck } = await supabase

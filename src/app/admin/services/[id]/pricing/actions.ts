@@ -21,7 +21,7 @@ export async function savePricingAction(serviceId: string, productId: string | n
   const isAdmin = 
     user.app_metadata?.role === 'ADMIN' ||
     user.app_metadata?.is_admin === true ||
-    user.email === 'sanaregeorge08@gmail.com';
+    user.email === 'qasinetltd@gmail.com';
 
   if (!isAdmin) {
     const { data: adminCheck } = await supabaseService.from('admins').select('id').eq('id', user.id).single();

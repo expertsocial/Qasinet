@@ -227,19 +227,32 @@ function resolveFeedback({
 
   // 8. PAYMENT FAILED / CANCELLED ON M-PESA
   if (
+    normStatus === 'PAYMENT_FAILED' ||
+    normMsg.includes('payment_failed') ||
     normMsg.includes('cancelled') ||
     normMsg.includes('pin') ||
     normMsg.includes('1032') ||
     normMsg.includes('1037') ||
+    normMsg.includes('4999') ||
     normMsg.includes('user cancelled') ||
     normMsg.includes('stk') ||
-    normMsg.includes('declined')
+    normMsg.includes('declined') ||
+    normMsg.includes('insufficient') ||
+    normMsg.includes('duplicated msisdn') ||
+    normMsg.includes('existing ussd session')
   ) {
+    let context = 'The M-Pesa payment prompt was cancelled or timed out on your phone. No money was deducted.';
+    if (normMsg.includes('insufficient')) {
+      context = 'Your M-Pesa account had insufficient balance for this purchase. No money was deducted.';
+    } else if (normMsg.includes('duplicated') || normMsg.includes('ussd') || normMsg.includes('4999')) {
+      context = 'Your phone currently has an active USSD menu or session open. Please exit your phone menu and try again.';
+    }
+
     return {
       category: 'PAYMENT_CANCELLED',
       severity: 'error',
       headline: 'M-Pesa Payment Not Completed',
-      context: 'The M-Pesa payment prompt was cancelled or timed out on your phone. No money was deducted.',
+      context,
       nextStepGuidance: 'You can retry the checkout prompt immediately or enter an alternative M-Pesa phone number.',
       badgeLabel: 'Payment Incomplete',
       showRetry: true,

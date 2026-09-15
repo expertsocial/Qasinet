@@ -21,8 +21,8 @@ describe('Service Availability System & Registry', () => {
     process.env = originalEnv;
   });
 
-  it('registers all 13 core services across airtime, data, electricity, tv, and water', () => {
-    expect(MASTER_SERVICES.length).toBe(13);
+  it('registers all 15 core services across airtime, data, electricity, tv, and water', () => {
+    expect(MASTER_SERVICES.length).toBe(15);
     const serviceIds = MASTER_SERVICES.map(s => s.id);
     expect(serviceIds).toContain('safaricom-airtime');
     expect(serviceIds).toContain('airtel-airtime');
@@ -30,6 +30,8 @@ describe('Service Availability System & Registry', () => {
     expect(serviceIds).toContain('faiba-airtime');
     expect(serviceIds).toContain('equitel-airtime');
     expect(serviceIds).toContain('faiba-data');
+    expect(serviceIds).toContain('safaricom-data');
+    expect(serviceIds).toContain('airtel-data');
     expect(serviceIds).toContain('kplc-prepaid');
     expect(serviceIds).toContain('kplc-postpaid');
     expect(serviceIds).toContain('nairobi-water');

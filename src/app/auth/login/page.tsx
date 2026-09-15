@@ -17,7 +17,10 @@ function LoginForm() {
   const { login, isAdmin } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectUrl = searchParams.get("redirect") || (emailOrPhone === "sanaregeorge08@gmail.com" ? "/admin" : "/dashboard");
+  const isTargetAdmin = (email: string) => {
+    return email.trim().toLowerCase() === "qasinetltd@gmail.com";
+  };
+  const redirectUrl = searchParams.get("redirect") || (isTargetAdmin(emailOrPhone) ? "/admin" : "/dashboard");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,8 +29,7 @@ function LoginForm() {
 
     try {
       await login(emailOrPhone, password);
-      const isGeorgeAdmin = emailOrPhone.trim().toLowerCase() === "sanaregeorge08@gmail.com";
-      const target = searchParams.get("redirect") || (isGeorgeAdmin ? "/admin" : "/dashboard");
+      const target = searchParams.get("redirect") || (isTargetAdmin(emailOrPhone) ? "/admin" : "/dashboard");
       router.push(target);
       router.refresh();
     } catch (err: any) {

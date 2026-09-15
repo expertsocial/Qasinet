@@ -40,7 +40,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const isAdmin = 
       user.app_metadata?.role === 'ADMIN' ||
       user.app_metadata?.is_admin === true ||
-      user.email === 'sanaregeorge08@gmail.com';
+      user.email === 'qasinetltd@gmail.com';
 
     if (!isAdmin) {
       const { data: adminCheck } = await supabaseService.from('admins').select('id').eq('id', user.id).single();
@@ -126,16 +126,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         initiatorPhone
       });
     } else if (serviceType === 'airtime' || serviceType === 'data') {
-      if (serviceType === 'data' && !serviceSlug.includes('faiba')) {
-        throw new QasiNetError('SERVICE_UNAVAILABLE', 'Data bundle vending is not supported on this network. Only Faiba 4G (FAIBA_B) is supported by Kyanda.');
+      const isResellerBundle = serviceSlug === 'safaricom-data' || serviceSlug === 'airtel-data';
+      if (isResellerBundle) {
+        const { BingwaProvider } = await import('@/lib/providers/bingwa/provider');
+        const bingwaProvider = new BingwaProvider();
+        const bundleRes = await bingwaProvider.vendBundle({
+          phone: tx.destination,
+          bundleCode: productCode || `${tx.amount}KES`,
+          amount: tx.amount,
+          reference: tx.payment_reference || tx.id,
+        });
+        vendingResult = {
+          merchant_reference: bundleRes.transaction_id || bundleRes.reference || `RES-${Date.now()}`,
+          ...bundleRes,
+        };
+      } else {
+        if (serviceType === 'data' && !serviceSlug.includes('faiba')) {
+          throw new QasiNetError('SERVICE_UNAVAILABLE', 'Data bundle vending is not supported on this network.');
+        }
+        vendingResult = await kyandaProvider.buyAirtime(
+          tx.amount,
+          tx.destination,
+          telco,
+          initiatorPhone,
+          productCode
+        );
       }
-      vendingResult = await kyandaProvider.buyAirtime(
-        tx.amount,
-        tx.destination,
-        telco,
-        initiatorPhone,
-        productCode
-      );
     } else {
       vendingResult = await kyandaProvider.payBill(
         tx.amount,

@@ -65,7 +65,7 @@ async function processTrackRequest(reference: string, rawPhone: string) {
     .order('created_at', { ascending: true });
 
   const latestEvent = events && events.length > 0 ? events[events.length - 1] : null;
-  let metadata: any = latestEvent?.details || {};
+  const metadata: any = latestEvent?.details || {};
   let currentStatus = transaction.status;
 
   // On-demand reconciliation if pending vending

@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         sbUser.app_metadata?.role === 'ADMIN' ||
         sbUser.app_metadata?.is_admin === true ||
         sbUser.user_metadata?.role === 'ADMIN' ||
-        sbUser.email === 'sanaregeorge08@gmail.com';
+        sbUser.email === 'qasinetltd@gmail.com';
 
       setIsAdmin(userIsAdmin);
 

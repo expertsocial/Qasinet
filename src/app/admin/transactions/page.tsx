@@ -33,6 +33,8 @@ export default async function TransactionsPage({
       query.in('status', ['VENDING_FAILED', 'VENDING_FAILED_REFUND_PENDING', 'PAYMENT_FAILED', 'TIMEOUT']);
     } else if (status === 'REFUND_PENDING') {
       query.or('status.eq.VENDING_FAILED_REFUND_PENDING,failure_reason.ilike.%[REFUND_PENDING]%');
+    } else if (status === 'UNMATCHED') {
+      query.eq('status', 'UNMATCHED_PAYMENT_MANUAL_REVIEW');
     } else {
       query.eq('status', status);
     }
@@ -53,7 +55,7 @@ export default async function TransactionsPage({
 
   // Fetch customer profiles in a batch for all transactions with user_id
   const userIds = Array.from(new Set(transactions?.map((t: any) => t.user_id).filter(Boolean)));
-  let profilesMap: Record<string, { full_name: string; phone: string; email?: string }> = {};
+  const profilesMap: Record<string, { full_name: string; phone: string; email?: string }> = {};
 
   if (userIds.length > 0) {
     const { data: profiles } = await supabaseService
@@ -200,6 +202,14 @@ export default async function TransactionsPage({
         >
           Pending
         </Link>
+        <Link
+          href={`/admin/transactions?status=UNMATCHED${search ? `&q=${search}` : ''}`}
+          className={`px-3.5 py-1.5 rounded-lg font-medium transition-colors ${
+            status === 'UNMATCHED' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : 'bg-neutral-900 text-neutral-400 hover:text-white border border-neutral-800'
+          }`}
+        >
+          Unmatched (C2B)
+        </Link>
       </div>
 
       {/* Filters Bar */}
@@ -225,6 +235,7 @@ export default async function TransactionsPage({
             <option value="SUCCESS">Success</option>
             <option value="FAILED">Failed (All)</option>
             <option value="REFUND_PENDING">Refund / Re-vend Pending</option>
+            <option value="UNMATCHED">Unmatched (C2B Paybill)</option>
             <option value="VENDING_FAILED">Vending Failed</option>
             <option value="VENDING_PENDING">Vending Pending</option>
             <option value="PAYMENT_PENDING">Payment Pending</option>
@@ -418,6 +429,13 @@ function StatusBadge({ status, createdAt }: { status: string; createdAt?: string
         title={`Refund pending for ${ageStr}`}
       >
         <Clock size={12} /> REFUND PENDING ({ageStr || 'Pending'})
+      </span>
+    );
+  }
+  if (status === 'UNMATCHED_PAYMENT_MANUAL_REVIEW' || status.includes('UNMATCHED')) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-500/15 text-purple-400 border border-purple-500/30">
+        <AlertTriangle size={12} /> UNMATCHED C2B
       </span>
     );
   }

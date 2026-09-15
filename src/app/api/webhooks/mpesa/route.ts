@@ -2,8 +2,40 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { TransactionOrchestrator } from '@/lib/services/orchestrator';
 import { KyandaProvider } from '@/lib/providers/kyanda/provider';
-import { PayBillServiceHandler } from '@/lib/services/paybill';
-import { QasiNetError } from '@/lib/errors';
+import { BingwaProvider } from '@/lib/providers/bingwa/provider';
+import { PayBillServiceHandler, PayBillResult } from '@/lib/services/paybill';
+
+interface CallbackMetadataItem {
+  Name: string;
+  Value?: string;
+}
+
+interface ServiceJoin {
+  slug: string;
+  type: string;
+}
+
+interface ProductJoin {
+  name: string;
+  provider_product_id?: string;
+}
+
+type VendingResult =
+  | PayBillResult
+  | {
+      merchant_reference: string;
+      token?: string;
+      Token?: string;
+      units?: string;
+      Units?: string;
+      details?: {
+        token?: string;
+        Token?: string;
+        units?: string;
+        Units?: string;
+      };
+      [key: string]: unknown;
+    };
 
 // Map service slugs to Kyanda Telco IDs for non-electricity services
 function getKyandaTelco(slug: string): string {
@@ -44,7 +76,7 @@ export async function POST(req: NextRequest) {
     // 1. Find the transaction by CheckoutRequestID (stored in payment_reference)
     const { data: tx, error: fetchError } = await supabaseService
       .from('transactions')
-      .select('id, status, amount, destination, service_id, product_id, services(slug, type), products(name, provider_product_id)')
+      .select('id, qsn_reference, status, amount, destination, service_id, product_id, services(slug, type), products(name, provider_product_id)')
       .eq('payment_reference', CheckoutRequestID)
       .single();
 
@@ -72,8 +104,8 @@ export async function POST(req: NextRequest) {
     // Extract Receipt Number from CallbackMetadata
     let mpesaReceipt = 'UNKNOWN';
     if (CallbackMetadata && CallbackMetadata.Item) {
-      const receiptItem = CallbackMetadata.Item.find((item: any) => item.Name === 'MpesaReceiptNumber');
-      if (receiptItem) {
+      const receiptItem = CallbackMetadata.Item.find((item: CallbackMetadataItem) => item.Name === 'MpesaReceiptNumber');
+      if (receiptItem && receiptItem.Value) {
         mpesaReceipt = receiptItem.Value;
       }
     }
@@ -98,17 +130,17 @@ export async function POST(req: NextRequest) {
     try {
       console.log(`[M-PESA Webhook] Starting Kyanda vending for ${tx.id}`);
       const kyandaProvider = new KyandaProvider();
-      const services: any = tx.services;
-      const products: any = tx.products;
-      const serviceSlug = services?.slug || (Array.isArray(services) && services[0]?.slug) || '';
-      const serviceType = services?.type || (Array.isArray(services) && services[0]?.type) || '';
+      const services = tx.services as ServiceJoin | ServiceJoin[] | null;
+      const products = tx.products as ProductJoin | ProductJoin[] | null;
+      const serviceSlug = (services && !Array.isArray(services) ? services.slug : '') || (Array.isArray(services) && services[0]?.slug) || '';
+      const serviceType = (services && !Array.isArray(services) ? services.type : '') || (Array.isArray(services) && services[0]?.type) || '';
       
       const initiatorPhone = process.env.KYANDA_INITIATOR_PHONE || '0722647928';
       const isElectricity = serviceSlug.includes('kplc') || serviceSlug.includes('electricity') || serviceType === 'electricity';
       const isTv = serviceSlug.includes('tv') || serviceSlug.includes('dstv') || serviceSlug.includes('gotv') || serviceSlug.includes('zuku') || serviceSlug.includes('startimes') || serviceType === 'tv';
       const isWater = serviceSlug.includes('water') || serviceType === 'water';
 
-      let vendingResult: { merchant_reference: string; [key: string]: any };
+      let vendingResult: VendingResult;
 
       if (isElectricity) {
         console.log(`[M-PESA Webhook] Dispatching electricity vending for tx ${tx.id}`);
@@ -139,8 +171,8 @@ export async function POST(req: NextRequest) {
           initiatorPhone
         });
       } else if (serviceType === 'airtime' || serviceType === 'data') {
-        let telco = getKyandaTelco(serviceSlug);
-        let productCode = products?.provider_product_id || (Array.isArray(products) && products[0]?.provider_product_id) || undefined;
+        const singleProduct = Array.isArray(products) ? products[0] : products;
+        let productCode = singleProduct?.provider_product_id || undefined;
 
         if (!productCode) {
           const { data: createdEvent } = await supabaseService
@@ -156,25 +188,41 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // Strictly block data bundle vending for non-Faiba networks
-        if (serviceType === 'data' && !serviceSlug.includes('faiba')) {
-          throw new QasiNetError('SERVICE_UNAVAILABLE', 'Data bundle vending is not supported on this network. Only Faiba 4G (FAIBA_B) is supported by Kyanda.');
+        // Route Safaricom & Airtel data bundles through the Reseller API
+        const isResellerBundle = serviceSlug === 'safaricom-data' || serviceSlug === 'airtel-data';
+
+        if (isResellerBundle) {
+          console.log(`[M-PESA Webhook] Dispatching bundle vending via Reseller API for tx ${tx.id}, Product: ${productCode || tx.amount}`);
+          const bingwaProvider = new BingwaProvider();
+          const bundleRes = await bingwaProvider.vendBundle({
+            phone: tx.destination,
+            bundleCode: productCode || `${tx.amount}KES`,
+            amount: tx.amount,
+            reference: tx.qsn_reference || tx.id,
+          });
+
+          vendingResult = {
+            merchant_reference: bundleRes.transaction_id || bundleRes.reference || `RES-${Date.now()}`,
+            ...bundleRes,
+          };
+        } else {
+          let telco = getKyandaTelco(serviceSlug);
+
+          // For Faiba Bundles, Kyanda expects telco 'FAIBA_B' with productCode
+          if (serviceSlug.includes('faiba') && (serviceType === 'data' || productCode)) {
+            telco = 'FAIBA_B';
+          }
+
+          console.log(`[Kyanda Vending Payload] Type: ${serviceType}, Amount: ${tx.amount}, Dest: ${tx.destination}, Telco: ${telco}, ProductCode: ${productCode}, Initiator: ${initiatorPhone}`);
+
+          vendingResult = await kyandaProvider.buyAirtime(
+            tx.amount,
+            tx.destination,
+            telco,
+            initiatorPhone,
+            productCode
+          );
         }
-
-        // For Faiba Bundles, Kyanda expects telco 'FAIBA_B' with productCode
-        if (serviceSlug.includes('faiba') && (serviceType === 'data' || productCode)) {
-          telco = 'FAIBA_B';
-        }
-
-        console.log(`[Kyanda Vending Payload] Type: ${serviceType}, Amount: ${tx.amount}, Dest: ${tx.destination}, Telco: ${telco}, ProductCode: ${productCode}, Initiator: ${initiatorPhone}`);
-
-        vendingResult = await kyandaProvider.buyAirtime(
-          tx.amount,
-          tx.destination,
-          telco,
-          initiatorPhone,
-          productCode
-        );
       } else {
         const telco = getKyandaTelco(serviceSlug);
         console.log(`[Kyanda Vending Payload] Bill Payment. Type: ${serviceType}, Amount: ${tx.amount}, Dest: ${tx.destination}, Telco: ${telco}, Initiator: ${initiatorPhone}`);
@@ -188,11 +236,12 @@ export async function POST(req: NextRequest) {
 
       console.log(`[M-PESA Webhook] Vending response received for ${tx.id}, Kyanda Ref: ${vendingResult.merchant_reference}`);
       
-      const rawRes: any = vendingResult;
-      const token = rawRes?.token || rawRes?.Token || rawRes?.details?.Token || rawRes?.details?.token;
-      const units = rawRes?.units || rawRes?.Units || rawRes?.details?.Units || rawRes?.details?.units;
+      const rawRes = vendingResult as Record<string, unknown>;
+      const details = (rawRes?.details || rawRes?.rawResponse) as Record<string, unknown> | undefined;
+      const token = (rawRes?.token || rawRes?.Token || details?.Token || details?.token) as string | undefined;
+      const units = (rawRes?.units || rawRes?.Units || details?.Units || details?.units) as string | undefined;
 
-      const metadata: any = {
+      const metadata: Record<string, unknown> = {
         merchant_reference: vendingResult.merchant_reference,
         kyanda_response: vendingResult
       };
@@ -221,17 +270,18 @@ export async function POST(req: NextRequest) {
         await orchestrator.logEvent(tx.id, 'VENDING_PENDING', metadata);
       }
 
-    } catch (vendingError: any) {
-      console.error(`[M-PESA Webhook] Vending failed for ${tx.id}:`, vendingError.message);
+    } catch (vendingError: unknown) {
+      const err = vendingError as { message?: string; category?: string };
+      console.error(`[M-PESA Webhook] Vending failed for ${tx.id}:`, err?.message);
       // Customer has already paid via M-Pesa. Transition to VENDING_FAILED_REFUND_PENDING
       // so it is immediately flagged for review/reversal rather than silently stuck.
       await orchestrator.markVendingFailedRefundPending(
         tx.id,
-        vendingError.message || 'Kyanda API failed',
+        err?.message || 'Kyanda API failed',
         undefined,
         {
-          error: vendingError.message,
-          error_category: vendingError.category || 'UNKNOWN',
+          error: err?.message,
+          error_category: err?.category || 'UNKNOWN',
           mpesaReceipt
         }
       );
@@ -240,8 +290,9 @@ export async function POST(req: NextRequest) {
     // Acknowledge Daraja immediately
     return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
 
-  } catch (error: any) {
-    console.error('[M-PESA Webhook] Internal error:', error.message);
+  } catch (error: unknown) {
+    const err = error as Error;
+    console.error('[M-PESA Webhook] Internal error:', err?.message);
     return NextResponse.json({ ResultCode: 1, ResultDesc: "Internal Error" }, { status: 500 });
   }
 }
