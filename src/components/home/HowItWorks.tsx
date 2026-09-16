@@ -7,7 +7,7 @@ export function HowItWorks() {
     {
       icon: MousePointerClick,
       title: "Choose a Service",
-      description: "Select Airtime, Data, TV, or Electricity from our dashboard.",
+      description: "Choose Airtime or Data Bundles for your network.",
     },
     {
       icon: FileText,
@@ -34,7 +34,7 @@ export function HowItWorks() {
             How Qasi<span className="text-primary">Net</span> Works
           </h2>
           <p className="text-lg text-muted-foreground">
-            Experience the simplest way to purchase digital services and pay your bills in four easy steps.
+            Experience the simplest way to top up airtime and activate data bundles in four easy steps.
           </p>
         </div>
 

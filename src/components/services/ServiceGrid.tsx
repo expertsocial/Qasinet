@@ -37,6 +37,11 @@ export function ServiceGrid() {
   const visibleServices = getVisibleServices();
   const serviceGroups = getGroupedServices();
 
+  const activeCategoryIds = new Set(visibleServices.map((s) => s.category));
+  const availableCategories = CATEGORIES.filter(
+    (cat) => cat.id === "all" || activeCategoryIds.has(cat.id as any)
+  );
+
   const handleServiceClick = (category: string, serviceId: string, status: ServiceStatus) => {
     if (status === "coming_soon") return; // Handled by card toast
     router.push(`/services/${category}?provider=${serviceId}`);
@@ -50,7 +55,7 @@ export function ServiceGrid() {
     <div className="w-full space-y-10">
       {/* Category Pills Filter */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none justify-start sm:justify-center">
-        {CATEGORIES.map((cat) => {
+        {availableCategories.map((cat) => {
           const isSelected = selectedCategory === cat.id;
           const Icon = cat.icon;
           return (

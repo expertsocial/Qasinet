@@ -14,7 +14,7 @@ describe('Startup & Deployment Safeguards', () => {
 
   describe('KPLC Prepaid Safeguard', () => {
     it('passes validation when kplc-prepaid is enabled and channel code is set', () => {
-      delete process.env.NEXT_PUBLIC_SERVICE_STATUS_KPLC_PREPAID; // default is 'enabled' in MASTER_SERVICES
+      process.env.NEXT_PUBLIC_SERVICE_STATUS_KPLC_PREPAID = 'enabled';
       process.env.KYANDA_KPLC_PREPAID_CHANNEL = 'KPLC_PREPAID';
 
       const result = validateDeploymentSafeguards();
@@ -24,7 +24,7 @@ describe('Startup & Deployment Safeguards', () => {
     });
 
     it('fails loudly with fatal error when kplc-prepaid is enabled but channel code is blank', () => {
-      delete process.env.NEXT_PUBLIC_SERVICE_STATUS_KPLC_PREPAID; // default is 'enabled'
+      process.env.NEXT_PUBLIC_SERVICE_STATUS_KPLC_PREPAID = 'enabled';
       delete process.env.KYANDA_KPLC_PREPAID_CHANNEL;
 
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -40,7 +40,7 @@ describe('Startup & Deployment Safeguards', () => {
     });
 
     it('fails loudly when kplc-prepaid channel code is only whitespace', () => {
-      delete process.env.NEXT_PUBLIC_SERVICE_STATUS_KPLC_PREPAID;
+      process.env.NEXT_PUBLIC_SERVICE_STATUS_KPLC_PREPAID = 'enabled';
       process.env.KYANDA_KPLC_PREPAID_CHANNEL = '   ';
 
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -51,8 +51,8 @@ describe('Startup & Deployment Safeguards', () => {
       consoleErrorSpy.mockRestore();
     });
 
-    it('passes validation when kplc-prepaid is paused (coming_soon) even if channel code is blank', () => {
-      process.env.NEXT_PUBLIC_SERVICE_STATUS_KPLC_PREPAID = 'coming_soon';
+    it('passes validation when kplc-prepaid is paused or hidden by default even if channel code is blank', () => {
+      delete process.env.NEXT_PUBLIC_SERVICE_STATUS_KPLC_PREPAID; // defaults to 'hidden'
       delete process.env.KYANDA_KPLC_PREPAID_CHANNEL;
 
       const result = validateDeploymentSafeguards();

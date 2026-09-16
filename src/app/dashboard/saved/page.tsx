@@ -158,7 +158,7 @@ export default function SavedBeneficiariesPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Saved Beneficiaries</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Store your family phone numbers, electricity meter tokens, and TV smartcards for 1-click checkout.
+            Store your family and friend phone numbers for 1-click airtime and data checkout.
           </p>
         </div>
         <Button onClick={() => setIsModalOpen(true)} className="gap-2 shadow-sm font-medium">
@@ -257,7 +257,7 @@ export default function SavedBeneficiariesPage() {
           <div>
             <h3 className="font-semibold text-base text-foreground">No saved beneficiaries yet</h3>
             <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">
-              Save your phone number, friends, family contacts, or KPLC electricity meters to avoid typing them repeatedly during purchases.
+              Save your phone number, friends, or family contacts to avoid typing them repeatedly during purchases.
             </p>
           </div>
           <div>
@@ -299,17 +299,10 @@ export default function SavedBeneficiariesPage() {
                     const newType = e.target.value as BeneficiaryType;
                     setType(newType);
                     if (newType === "phone") setProvider("Safaricom");
-                    else if (newType === "electricity") setProvider("KPLC");
-                    else if (newType === "tv") setProvider("DStv");
-                    else if (newType === "internet") setProvider("Zuku");
                   }}
                   className="w-full bg-background border border-border rounded-xl px-3.5 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 >
                   <option value="phone">Mobile Phone (Airtime & Data)</option>
-                  <option value="electricity">Electricity (KPLC Prepaid / Postpaid)</option>
-                  <option value="tv">TV Subscriptions (DStv, GOtv, StarTimes)</option>
-                  <option value="internet">Internet & Fiber (Zuku, Faiba)</option>
-                  <option value="water">Water Bill</option>
                 </select>
               </div>
 

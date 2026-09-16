@@ -32,7 +32,7 @@ export function Footer() {
             </Link>
             
             <p className="text-muted-foreground text-sm leading-relaxed max-w-sm">
-              Kenya’s premier digital services platform. Buy airtime, high-speed data bundles, KPLC electricity tokens, and settle TV & utility bills instantly with guaranteed automated delivery.
+              Kenya’s premier digital services platform. Buy airtime and high-speed data bundles instantly with guaranteed automated M-Pesa delivery.
             </p>
 
             <div className="flex flex-col gap-2 pt-2 text-xs text-muted-foreground">

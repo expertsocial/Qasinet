@@ -2,9 +2,9 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'QasiNet - Digital Services & Utilities',
+    name: 'QasiNet - Digital Services & Telecom',
     short_name: 'QasiNet',
-    description: 'Instant Airtime, High-speed Data Bundles, Electricity & Utility Payments in Kenya',
+    description: 'Instant Airtime & High-speed Data Bundles in Kenya',
     start_url: '/',
     display: 'standalone',
     orientation: 'portrait-primary',
@@ -36,13 +36,6 @@ export default function manifest(): MetadataRoute.Manifest {
         short_name: 'Airtime',
         description: 'Top up Safaricom, Airtel, Telkom, or Equitel airtime',
         url: '/services/airtime',
-        icons: [{ src: '/icon.jpeg', sizes: '192x192' }],
-      },
-      {
-        name: 'Electricity Tokens',
-        short_name: 'Tokens',
-        description: 'KPLC prepaid electricity tokens and postpaid bill payment',
-        url: '/services/electricity',
         icons: [{ src: '/icon.jpeg', sizes: '192x192' }],
       },
     ],

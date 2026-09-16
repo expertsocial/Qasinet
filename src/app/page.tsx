@@ -47,7 +47,7 @@ export default function Home() {
 
             {/* Main Headline */}
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-foreground leading-[1.1]">
-              Instant Utilities & Airtime. <br className="hidden sm:inline" />
+              Instant Airtime & Data Bundles. <br className="hidden sm:inline" />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 via-teal-400 to-sky-500">
                 Delivered in Seconds.
               </span>
@@ -55,7 +55,7 @@ export default function Home() {
 
             {/* Subheading */}
             <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto font-normal leading-relaxed">
-              Buy airtime, subscribe to data bundles, purchase KPLC electricity tokens, and settle TV & water bills seamlessly with automated M-Pesa checkout.
+              Buy airtime and subscribe to high-speed data bundles across Safaricom, Airtel, Telkom, Equitel, and Faiba networks with instant automated M-Pesa delivery.
             </p>
             
             {/* Quick Service Action Launcher - Registry Driven */}
@@ -144,7 +144,7 @@ export default function Home() {
               </div>
               <h3 className="text-lg font-bold text-foreground">Sub-5-Second Vending</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Direct integration with telco gateways and KPLC systems ensures your tokens and airtime land immediately upon payment.
+                Direct integration with telco gateways ensures your airtime and data bundles land immediately upon payment.
               </p>
             </div>
             
@@ -164,7 +164,7 @@ export default function Home() {
               </div>
               <h3 className="text-lg font-bold text-foreground">Live Audit & Receipts</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Generate downloadable PDF receipts, copy electricity tokens with one click, and track transactions at any time.
+                Generate downloadable PDF receipts, verify transactions with one click, and track fulfillment at any time.
               </p>
             </div>
 
@@ -179,7 +179,7 @@ export default function Home() {
       <section className="py-14 border-t border-border/60 bg-muted/10">
         <div className="container mx-auto px-4 text-center space-y-6">
           <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-            Supported Networks & Certified Utility Providers
+            Supported Mobile Networks & Data Providers
           </p>
           
           <div className="flex gap-6 sm:gap-10 items-center justify-center flex-wrap opacity-75 grayscale hover:grayscale-0 transition-all duration-500">
@@ -193,13 +193,10 @@ export default function Home() {
               <Image src="/logos/telcom-logo.png" alt="Telkom" fill className="object-contain" sizes="96px" />
             </div>
             <div className="w-24 h-12 relative">
-              <Image src="/logos/kenya-power-logo.jpg" alt="KPLC" fill className="object-contain" sizes="96px" />
+              <Image src="/logos/equitel-logo.jpg" alt="Equitel" fill className="object-contain" sizes="96px" />
             </div>
             <div className="w-24 h-12 relative">
-              <Image src="/logos/dstv-logo.jpg" alt="DStv" fill className="object-contain" sizes="96px" />
-            </div>
-            <div className="w-24 h-12 relative">
-              <Image src="/logos/gotv-logo.png" alt="GOtv" fill className="object-contain" sizes="96px" />
+              <Image src="/logos/faiba-logo.png" alt="Faiba" fill className="object-contain" sizes="96px" />
             </div>
           </div>
         </div>

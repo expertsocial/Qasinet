@@ -13,7 +13,7 @@ export function FaqSection() {
     },
     {
       title: "How do I purchase a service?",
-      content: "Simply select the service you want (e.g., Airtime, KPLC) from our homepage, enter your phone or account number, choose the amount, and proceed to checkout. You will pay securely via Mobile Money and your service will be vended immediately.",
+      content: "Simply select the service you want (e.g., Airtime or Data Bundles) from our homepage, enter your phone number, choose the amount, and proceed to checkout. You will pay securely via Mobile Money and your service will be delivered immediately.",
     },
     {
       title: "How do I track a transaction?",
@@ -25,7 +25,7 @@ export function FaqSection() {
     },
     {
       title: "What happens if payment succeeds but vending is pending?",
-      content: "If your Mobile Money payment is deducted but the service provider (like KPLC or Safaricom) is experiencing downtime, your vending status will show as pending. Our system will automatically retry the vending process until it succeeds. If it fails permanently, the system will initiate a refund.",
+      content: "If your Mobile Money payment is deducted but the telco service provider (like Safaricom or Airtel) is experiencing downtime, your vending status will show as pending. Our system will automatically retry the vending process until it succeeds. If it fails permanently, our team will process a refund.",
     },
     {
       title: "How do I get my receipt?",
@@ -48,7 +48,7 @@ export function FaqSection() {
               Frequently Asked <span className="text-primary">Questions</span>
             </h2>
             <p className="text-lg text-muted-foreground mb-8">
-              Everything you need to know about purchasing digital services and paying bills on QasiNet. Can't find the answer you're looking for?
+              Everything you need to know about purchasing airtime and data bundles on QasiNet. Can't find the answer you're looking for?
             </p>
             <Link href="/contact" className={cn(buttonVariants({ size: "lg" }), "w-full sm:w-auto gap-2 inline-flex")}>
               <MessageSquare className="w-5 h-5" />

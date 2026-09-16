@@ -41,19 +41,19 @@ describe('Service Availability System & Registry', () => {
     expect(serviceIds).toContain('zuku');
   });
 
-  it('defaults active services including Faiba bundles and KPLC prepaid to enabled, and unconfirmed postpaid electricity to coming_soon without env override', () => {
+  it('defaults active services including Faiba bundles to enabled, and deprecated utilities (electricity, water, tv) to hidden without env override', () => {
     delete process.env.NEXT_PUBLIC_SERVICE_STATUS_FAIBA_DATA;
     delete process.env.NEXT_PUBLIC_ENABLE_FAIBA_BUNDLES;
     delete process.env.NEXT_PUBLIC_SERVICE_STATUS_SAFARICOM_AIRTIME;
     delete process.env.NEXT_PUBLIC_SERVICE_STATUS_KPLC_PREPAID;
 
     expect(getServiceStatus('safaricom-airtime')).toBe('enabled');
-    expect(getServiceStatus('kplc-prepaid')).toBe('enabled');
-    expect(isServiceEnabled('kplc-prepaid')).toBe(true);
-    expect(getServiceStatus('kplc-postpaid')).toBe('coming_soon');
+    expect(getServiceStatus('kplc-prepaid')).toBe('hidden');
+    expect(isServiceEnabled('kplc-prepaid')).toBe(false);
+    expect(getServiceStatus('kplc-postpaid')).toBe('hidden');
     expect(isServiceEnabled('kplc-postpaid')).toBe(false);
-    expect(getServiceStatus('nairobi-water')).toBe('enabled');
-    expect(getServiceStatus('dstv')).toBe('enabled');
+    expect(getServiceStatus('nairobi-water')).toBe('hidden');
+    expect(getServiceStatus('dstv')).toBe('hidden');
     expect(getServiceStatus('faiba-data')).toBe('enabled');
   });
 
@@ -96,22 +96,19 @@ describe('Service Availability System & Registry', () => {
     delete process.env.NEXT_PUBLIC_SERVICE_STATUS_ZUKU;
     const groups = getGroupedServices();
 
-    expect(groups.length).toBe(2);
+    // Since bill_payments services default to hidden, only active airtime_data group is returned
+    expect(groups.length).toBe(1);
     expect(groups[0].key).toBe('airtime_data');
     expect(groups[0].title).toBe('Airtime & Data Bundles');
     expect(groups[0].services.some(s => s.id === 'safaricom-airtime')).toBe(true);
-
-    expect(groups[1].key).toBe('bill_payments');
-    expect(groups[1].title).toBe('Utility & Entertainment Bills');
-    expect(groups[1].services.some(s => s.id === 'kplc-prepaid')).toBe(true);
-    expect(groups[1].services.some(s => s.id === 'nairobi-water')).toBe(true);
   });
 
   it('provides distinct top-level service categories for the hero launcher', () => {
     const categories = getServiceCategories();
-    expect(categories.length).toBe(5);
+    // Only categories with visible services are returned
+    expect(categories.length).toBe(2);
     const catIds = categories.map(c => c.id);
-    expect(catIds).toEqual(['airtime', 'data', 'electricity', 'tv', 'water']);
+    expect(catIds).toEqual(['airtime', 'data']);
   });
 });
 

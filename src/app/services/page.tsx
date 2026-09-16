@@ -6,7 +6,7 @@ import { getGroupedServices } from "@/lib/services/registry";
 
 export const metadata: Metadata = {
   title: "Services Directory | QasiNet",
-  description: "Browse our complete catalog of certified airtime, high-speed data bundles, KPLC electricity tokens, and TV & utility payments.",
+  description: "Browse our complete catalog of certified airtime and high-speed data bundles across Safaricom, Airtel, Telkom, Equitel, and Faiba.",
 };
 
 export default function ServicesDirectoryPage() {
@@ -17,13 +17,13 @@ export default function ServicesDirectoryPage() {
       {/* Header Banner */}
       <section className="py-12 sm:py-16 text-center max-w-3xl mx-auto px-4 space-y-4">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase tracking-wider">
-          <Sparkles className="w-3.5 h-3.5" /> All-In-One Utilities Portal
+          <Sparkles className="w-3.5 h-3.5" /> Direct Services Marketplace
         </div>
         <h1 className="text-4xl sm:text-5xl font-black tracking-tight text-foreground">
           Digital Services Directory
         </h1>
         <p className="text-base sm:text-lg text-muted-foreground leading-relaxed">
-          Explore our complete catalogue of certified telecom, power, and entertainment payment gateways. Automated M-Pesa delivery guaranteed.
+          Explore our complete catalogue of certified telecom and high-speed data bundles. Automated M-Pesa delivery guaranteed.
         </p>
       </section>
 

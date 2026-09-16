@@ -16,8 +16,6 @@ import {
   Zap,
   Smartphone,
   Wifi,
-  Tv,
-  Droplets,
   Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -119,7 +117,7 @@ export default function DashboardLayout({
               <div className="pt-4 border-t border-border/60 space-y-2">
                 <div className="flex items-center justify-between px-2">
                   <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Instant Utilities
+                    Available Services
                   </p>
                   <Sparkles className="w-3 h-3 text-primary" />
                 </div>
@@ -132,14 +130,6 @@ export default function DashboardLayout({
                   <Link href="/services/data" className="flex items-center gap-2 p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                     <Wifi className="w-3.5 h-3.5 text-sky-500" />
                     <span>Data</span>
-                  </Link>
-                  <Link href="/services/electricity" className="flex items-center gap-2 p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                    <Zap className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Electricity</span>
-                  </Link>
-                  <Link href="/services/tv" className="flex items-center gap-2 p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                    <Tv className="w-3.5 h-3.5 text-indigo-500" />
-                    <span>TV Sub</span>
                   </Link>
                 </div>
               </div>

@@ -271,7 +271,7 @@ export default function DashboardOverviewPage() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <Link 
             href="/services/airtime"
             className="p-5 rounded-3xl bg-card border border-border/80 hover:border-primary/50 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group"
@@ -280,7 +280,7 @@ export default function DashboardOverviewPage() {
               <Smartphone className="w-5 h-5" />
             </div>
             <h3 className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">Airtime Top-Up</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">Safaricom, Airtel, Telkom</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Safaricom, Airtel, Telkom, Equitel, Faiba</p>
           </Link>
 
           <Link 
@@ -291,29 +291,7 @@ export default function DashboardOverviewPage() {
               <Wifi className="w-5 h-5" />
             </div>
             <h3 className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">Data Bundles</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">Daily, weekly & monthly</p>
-          </Link>
-
-          <Link 
-            href="/services/electricity"
-            className="p-5 rounded-3xl bg-card border border-border/80 hover:border-primary/50 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-              <Zap className="w-5 h-5" />
-            </div>
-            <h3 className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">Electricity Tokens</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">KPLC Prepaid & Postpaid</p>
-          </Link>
-
-          <Link 
-            href="/services/tv"
-            className="p-5 rounded-3xl bg-card border border-border/80 hover:border-primary/50 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-              <Tv className="w-5 h-5" />
-            </div>
-            <h3 className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">TV Subscriptions</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">DStv, GOtv, Zuku, StarTimes</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Daily, weekly & monthly high-speed packages</p>
           </Link>
         </div>
       </div>
