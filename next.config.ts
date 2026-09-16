@@ -1,4 +1,8 @@
 import type { NextConfig } from "next";
+import { assertDeploymentSafeguards } from "./src/lib/startup-check";
+
+// Deployment Safeguard: Fail loudly on build/startup if electricity is enabled but channel code is blank
+assertDeploymentSafeguards();
 
 const nextConfig: NextConfig = {
   compress: true,

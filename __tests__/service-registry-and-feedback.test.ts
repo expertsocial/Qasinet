@@ -41,15 +41,15 @@ describe('Service Availability System & Registry', () => {
     expect(serviceIds).toContain('zuku');
   });
 
-  it('defaults active services including Faiba bundles to enabled, and paused electricity to coming_soon without env override', () => {
+  it('defaults active services including Faiba bundles and KPLC prepaid to enabled, and unconfirmed postpaid electricity to coming_soon without env override', () => {
     delete process.env.NEXT_PUBLIC_SERVICE_STATUS_FAIBA_DATA;
     delete process.env.NEXT_PUBLIC_ENABLE_FAIBA_BUNDLES;
     delete process.env.NEXT_PUBLIC_SERVICE_STATUS_SAFARICOM_AIRTIME;
     delete process.env.NEXT_PUBLIC_SERVICE_STATUS_KPLC_PREPAID;
 
     expect(getServiceStatus('safaricom-airtime')).toBe('enabled');
-    expect(getServiceStatus('kplc-prepaid')).toBe('coming_soon');
-    expect(isServiceEnabled('kplc-prepaid')).toBe(false);
+    expect(getServiceStatus('kplc-prepaid')).toBe('enabled');
+    expect(isServiceEnabled('kplc-prepaid')).toBe(true);
     expect(getServiceStatus('kplc-postpaid')).toBe('coming_soon');
     expect(isServiceEnabled('kplc-postpaid')).toBe(false);
     expect(getServiceStatus('nairobi-water')).toBe('enabled');

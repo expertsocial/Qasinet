@@ -186,11 +186,11 @@ export const MASTER_SERVICES: ServiceDefinition[] = [
     groupKey: 'bill_payments',
     groupTitle: 'Utility & Bill Payments',
     logoSrc: '/logos/kenya-power-logo.jpg',
-    badge: 'Paused',
+    badge: '24/7 Vend',
     tagline: 'Instant Meter Token',
     description: 'Buy KPLC electricity tokens with automatic meter owner detection and instant 20-digit token SMS.',
     href: '/services/electricity',
-    defaultStatus: 'coming_soon',
+    defaultStatus: 'enabled',
     comingSoonMessage: 'Kenya Power electricity token vending is temporarily paused pending gateway channel configuration. Please check back shortly.',
   },
   {

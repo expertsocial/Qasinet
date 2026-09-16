@@ -140,7 +140,9 @@ export default function ElectricityPage() {
                     <span>Electricity Vending Temporarily Paused</span>
                   </div>
                   <p className="text-neutral-300 leading-relaxed">
-                    Kenya Power electricity token vending is temporarily paused pending gateway channel configuration. Purchases are suspended to protect customer funds. Please check back shortly.
+                    {type === "Postpaid"
+                      ? "Kenya Power postpaid bill payment is temporarily paused pending gateway channel configuration. Purchases are suspended to protect customer funds. Please check back shortly."
+                      : "Kenya Power electricity token vending is temporarily paused pending gateway channel configuration. Purchases are suspended to protect customer funds. Please check back shortly."}
                   </p>
                 </div>
               )}
