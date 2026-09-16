@@ -52,8 +52,8 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
       setTimeout(() => inputRef.current?.focus(), 50);
       sounds.playTap();
     } else {
-      setQuery("");
-      setResults([]);
+      setQuery((prev) => (prev !== "" ? "" : prev));
+      setResults((prev) => (prev.length > 0 ? [] : prev));
     }
   }, [isOpen]);
 

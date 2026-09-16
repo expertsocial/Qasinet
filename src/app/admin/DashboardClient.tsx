@@ -56,15 +56,17 @@ export default function DashboardClient({ summary, chartData, serviceData, recen
   const [secondsRemaining, setSecondsRemaining] = useState<number>(30);
   const [isTopUpOpen, setIsTopUpOpen] = useState(false);
 
-  // Subscribe to current time cleanly without impure render or cascading setState
-  const currentTime = React.useSyncExternalStore(
-    (callback) => {
-      const interval = setInterval(callback, 10000);
-      return () => clearInterval(interval);
-    },
-    () => Date.now(),
-    () => null
-  );
+  // Relative time tracker for overdue refund badges (client-side only to avoid hydration mismatch)
+  const [currentTime, setCurrentTime] = useState<number | null>(null);
+
+  React.useEffect(() => {
+    setCurrentTime(Date.now());
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
 
   // Auto-refresh countdown
   React.useEffect(() => {
