@@ -130,7 +130,9 @@ export async function POST(req: NextRequest) {
         tx.id,
         false,
         failureReason,
-        providerRef || tx.kyanda_reference || undefined
+        providerRef || tx.kyanda_reference || undefined,
+        { provider_payload: payload },
+        'VENDING_FAILED_REFUND_PENDING'
       );
     }
 
