@@ -3,6 +3,7 @@ import { trackTransactionSchema } from '@/lib/validations/transaction';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { KyandaProvider } from '@/lib/providers/kyanda/provider';
 import { TransactionOrchestrator } from '@/lib/services/orchestrator';
+import { getClientIp, checkRateLimit } from '@/lib/security/rate-limit';
 
 function normalizePhone(p: string | null | undefined): string {
   if (!p) return '';
@@ -124,6 +125,20 @@ async function processTrackRequest(reference: string, rawPhone: string) {
 
 export async function POST(req: NextRequest) {
   try {
+    const clientIp = getClientIp(req);
+    const rateCheck = checkRateLimit(`track:${clientIp}`, { limit: 25, windowMs: 60000 });
+    if (!rateCheck.success) {
+      return NextResponse.json(
+        { error: 'Too many tracking requests. Please wait a minute.' },
+        { 
+          status: 429,
+          headers: {
+            'Retry-After': String(Math.ceil((rateCheck.resetAt - Date.now()) / 1000)),
+          }
+        }
+      );
+    }
+
     const body = await req.json();
     const parsed = trackTransactionSchema.safeParse(body);
     if (!parsed.success) {
@@ -151,6 +166,20 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
+    const clientIp = getClientIp(req);
+    const rateCheck = checkRateLimit(`track:${clientIp}`, { limit: 25, windowMs: 60000 });
+    if (!rateCheck.success) {
+      return NextResponse.json(
+        { error: 'Too many tracking requests. Please wait a minute.' },
+        { 
+          status: 429,
+          headers: {
+            'Retry-After': String(Math.ceil((rateCheck.resetAt - Date.now()) / 1000)),
+          }
+        }
+      );
+    }
+
     const url = new URL(req.url);
     const reference = url.searchParams.get('reference') || url.searchParams.get('ref') || '';
     const phone = url.searchParams.get('phone') || '';

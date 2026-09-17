@@ -45,10 +45,17 @@ export async function updateSession(request: NextRequest) {
       console.warn('[Middleware] auth.getUser warning:', userErr)
     }
 
-    const isAdminRoute = request.nextUrl.pathname.startsWith('/admin')
+    const isAdminPageRoute = request.nextUrl.pathname.startsWith('/admin')
+    const isAdminApiRoute = request.nextUrl.pathname.startsWith('/api/admin')
 
-    if (isAdminRoute) {
+    if (isAdminPageRoute || isAdminApiRoute) {
       if (!user) {
+        if (isAdminApiRoute) {
+          return NextResponse.json(
+            { error: 'Unauthorized: Authentication required' },
+            { status: 401 }
+          )
+        }
         const url = request.nextUrl.clone()
         url.pathname = '/auth/login'
         url.searchParams.set('redirect', request.nextUrl.pathname)
@@ -87,6 +94,12 @@ export async function updateSession(request: NextRequest) {
         }
 
         if (!isDbAdmin) {
+          if (isAdminApiRoute) {
+            return NextResponse.json(
+              { error: 'Forbidden: Admin access required' },
+              { status: 403 }
+            )
+          }
           // User is logged in but not an admin
           const url = request.nextUrl.clone()
           url.pathname = '/dashboard'

@@ -42,6 +42,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: 'error', message: 'Invalid JSON payload' }, { status: 400 });
     }
 
+    // Webhook Secret Verification (if configured in environment)
+    const expectedSecret = process.env.BINGWA_WEBHOOK_SECRET;
+    if (expectedSecret) {
+      const headerSecret = req.headers.get('x-webhook-secret') || req.headers.get('x-api-key');
+      const authHeader = req.headers.get('authorization');
+      const querySecret = req.nextUrl.searchParams.get('secret');
+      const isBearerMatch = authHeader === `Bearer ${expectedSecret}`;
+      const isSecretMatch = headerSecret === expectedSecret || querySecret === expectedSecret || isBearerMatch;
+      if (!isSecretMatch) {
+        console.warn('[Reseller Webhook] Unauthorized webhook callback rejected.');
+        return NextResponse.json({ status: 'error', message: 'Unauthorized webhook' }, { status: 401 });
+      }
+    }
+
     console.log('[Reseller Webhook] Callback received:', JSON.stringify(payload));
 
     const supabaseService = createSupabaseClient(

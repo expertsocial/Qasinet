@@ -89,6 +89,20 @@ export function parseC2BReference(rawRef: string, payerPhone: string, amount: nu
 
 export async function POST(req: NextRequest) {
   try {
+    // Webhook Secret / Verification Token check (if configured in environment)
+    const expectedSecret = process.env.MPESA_C2B_SECRET;
+    if (expectedSecret) {
+      const queryToken = req.nextUrl.searchParams.get('token') || req.nextUrl.searchParams.get('secret');
+      const headerSecret = req.headers.get('x-webhook-secret') || req.headers.get('x-api-key');
+      const authHeader = req.headers.get('authorization');
+      const isBearerMatch = authHeader === `Bearer ${expectedSecret}`;
+      const isSecretMatch = queryToken === expectedSecret || headerSecret === expectedSecret || isBearerMatch;
+      if (!isSecretMatch) {
+        console.warn('[M-PESA C2B Webhook] Unauthorized callback rejected.');
+        return NextResponse.json({ ResultCode: 1, ResultDesc: "Unauthorized callback" }, { status: 401 });
+      }
+    }
+
     const body: SafaricomC2BPayload = await req.json();
     console.log(`[M-PESA C2B Webhook] Received Paybill payment: TransID=${body.TransID}, Amount=${body.TransAmount}, Ref=${body.BillRefNumber}, MSISDN=${body.MSISDN}`);
 

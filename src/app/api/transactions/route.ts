@@ -8,33 +8,22 @@ import { QasiNetError } from '@/lib/errors';
 import { MpesaDarajaProvider } from '@/lib/providers/mpesa/provider';
 import { floatService } from '@/lib/services/float';
 
-// Basic in-memory rate limiter (Warning: Resets on serverless cold starts)
-const rateLimitMap = new Map<string, { count: number, resetAt: number }>();
-const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
-const MAX_REQUESTS_PER_WINDOW = 5;
-
-function checkRateLimit(identifier: string): boolean {
-  const now = Date.now();
-  const record = rateLimitMap.get(identifier);
-
-  if (!record || record.resetAt < now) {
-    rateLimitMap.set(identifier, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return true;
-  }
-
-  if (record.count >= MAX_REQUESTS_PER_WINDOW) {
-    return false;
-  }
-
-  record.count++;
-  return true;
-}
+import { getClientIp, checkRateLimit } from '@/lib/security/rate-limit';
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get('x-forwarded-for') || 'unknown-ip';
-    if (!checkRateLimit(ip)) {
-      return NextResponse.json({ error: 'Too many requests, please try again later.' }, { status: 429 });
+    const clientIp = getClientIp(req);
+    const rateCheck = checkRateLimit(`tx-init:${clientIp}`, { limit: 10, windowMs: 60000 });
+    if (!rateCheck.success) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please wait a moment before trying again.' },
+        { 
+          status: 429,
+          headers: {
+            'Retry-After': String(Math.ceil((rateCheck.resetAt - Date.now()) / 1000)),
+          }
+        }
+      );
     }
 
     const body = await req.json();

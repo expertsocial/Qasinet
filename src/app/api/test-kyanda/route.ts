@@ -6,6 +6,18 @@ function generateHmac(data: string, secretKey: string): string {
 }
 
 export async function GET(req: Request) {
+  // 1. Strict Production Guard: Completely disable in production
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
+  // 2. Development Guard: Require explicit authorization token
+  const authHeader = req.headers.get('authorization');
+  const testSecret = process.env.TEST_API_SECRET || process.env.CRON_SECRET;
+  if (testSecret && authHeader !== `Bearer ${testSecret}`) {
+    return NextResponse.json({ error: 'Unauthorized: Test secret required' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const testPhone = searchParams.get('phone') || '0722647928';
