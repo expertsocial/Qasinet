@@ -18,6 +18,8 @@ import { FAIBA_DATA_BUNDLES, IS_FAIBA_BUNDLES_ENABLED } from "@/lib/constants/fa
 import { SAFARICOM_DATA_BUNDLES } from "@/lib/constants/safaricom-bundles";
 import { AIRTEL_DATA_BUNDLES } from "@/lib/constants/airtel-bundles";
 
+import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
+
 type Step = 1 | 2 | 3 | 4 | 5;
 type SupportedNetwork = "safaricom" | "airtel" | "faiba";
 
@@ -180,6 +182,15 @@ function DataContent() {
     <main className="min-h-screen bg-background pt-24 pb-16">
       <div className="container max-w-3xl mx-auto px-4">
         
+        {/* Breadcrumb Navigation */}
+        <Breadcrumbs 
+          items={[
+            { label: "Services", href: "/services" },
+            { label: "Buy Data Bundles" }
+          ]} 
+          className="mb-4"
+        />
+
         {/* Header */}
         {step < 5 && (
           <div className="mb-8">
@@ -199,6 +210,14 @@ function DataContent() {
             <p className="text-muted-foreground">
               Instant high-speed Safaricom, Airtel & Faiba 4G bundles with automatic M-Pesa delivery.
             </p>
+            <div className="mt-2">
+              <Link 
+                href="/services/airtime" 
+                className="inline-flex items-center gap-1.5 text-xs text-primary font-medium hover:underline"
+              >
+                Looking for simple airtime credit instead? Top up any network in seconds →
+              </Link>
+            </div>
           </div>
         )}
 

@@ -19,6 +19,8 @@ import { getRememberedServiceDestination } from "@/lib/beneficiaries";
 
 import { FAIBA_DATA_BUNDLES, FaibaBundle, IS_FAIBA_BUNDLES_ENABLED } from "@/lib/constants/faiba-bundles";
 
+import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
+
 type Step = 1 | 2 | 3 | 4 | 5;
 
 function getNetworkLogo(net?: string | null): string {
@@ -33,42 +35,84 @@ function getNetworkLogo(net?: string | null): string {
 }
 
 function AirtimeContent() {
+  const searchParams = useSearchParams();
+  const urlPhone = searchParams.get("phone");
+  const urlAmount = searchParams.get("amount");
+  const urlNet = searchParams.get("network");
+
   const [step, setStep] = useState<Step>(1);
-  const [network, setNetwork] = useState<Network | null>(null);
+  const [network, setNetwork] = useState<Network>("Safaricom");
   const [phone, setPhone] = useState("");
   const [isPhoneValid, setIsPhoneValid] = useState(false);
   const [amount, setAmount] = useState<number>(0);
   const [selectedBundle, setSelectedBundle] = useState<FaibaBundle | null>(null);
-  const searchParams = useSearchParams();
+  
   const { user } = useAuth();
 
-  // Load URL phone param, remembered phone, or user phone
   useEffect(() => {
-    const urlPhone = searchParams.get("phone");
-    if (urlPhone && isValidKenyanPhone(urlPhone)) {
+    if (urlPhone) {
       setPhone(urlPhone);
-      setIsPhoneValid(true);
-      return;
+      if (isValidKenyanPhone(urlPhone)) {
+        setIsPhoneValid(true);
+        const detected = detectCarrier(urlPhone);
+        if (detected) {
+          if (detected.name === "AIRTEL") setNetwork("Airtel");
+          else if (detected.name === "TELKOM") setNetwork("Telkom");
+          else if (detected.name === "EQUITEL") setNetwork("Equitel");
+          else if (detected.name === "FAIBA") setNetwork("Faiba");
+          else setNetwork("Safaricom");
+        }
+      }
+    } else {
+      const remembered = getRememberedServiceDestination("airtime");
+      if (remembered && isValidKenyanPhone(remembered.destination)) {
+        setPhone(remembered.destination);
+        setIsPhoneValid(true);
+        const detected = detectCarrier(remembered.destination);
+        if (detected) {
+          if (detected.name === "AIRTEL") setNetwork("Airtel");
+          else if (detected.name === "TELKOM") setNetwork("Telkom");
+          else if (detected.name === "EQUITEL") setNetwork("Equitel");
+          else if (detected.name === "FAIBA") setNetwork("Faiba");
+          else setNetwork("Safaricom");
+        }
+      } else if (user?.phone && isValidKenyanPhone(user.phone)) {
+        setPhone(user.phone);
+        setIsPhoneValid(true);
+        const detected = detectCarrier(user.phone);
+        if (detected) {
+          if (detected.name === "AIRTEL") setNetwork("Airtel");
+          else if (detected.name === "TELKOM") setNetwork("Telkom");
+          else if (detected.name === "EQUITEL") setNetwork("Equitel");
+          else if (detected.name === "FAIBA") setNetwork("Faiba");
+          else setNetwork("Safaricom");
+        }
+      }
     }
 
-    const remembered = getRememberedServiceDestination("airtime");
-    if (remembered && isValidKenyanPhone(remembered.destination)) {
-      setPhone(remembered.destination);
-      setIsPhoneValid(true);
-      return;
+    if (urlAmount) {
+      const parsedAmount = parseInt(urlAmount, 10);
+      if (!isNaN(parsedAmount) && parsedAmount >= 10 && parsedAmount <= 10000) {
+        setAmount(parsedAmount);
+      }
     }
 
-    if (user?.phone && isValidKenyanPhone(user.phone)) {
-      setPhone(user.phone);
-      setIsPhoneValid(true);
+    if (urlNet) {
+      const lower = urlNet.toLowerCase();
+      if (lower === 'safaricom') setNetwork('Safaricom');
+      else if (lower === 'airtel') setNetwork('Airtel');
+      else if (lower === 'telkom') setNetwork('Telkom');
+      else if (lower === 'equitel') setNetwork('Equitel');
+      else if (lower === 'faiba') setNetwork('Faiba');
+      else if (lower === 'faiba bundles') setNetwork('Faiba Bundles');
     }
-  }, [searchParams, user]);
+  }, [urlPhone, urlAmount, urlNet, user]);
 
   const handleNext = () => setStep((s) => Math.min(s + 1, 5) as Step);
   const handleBack = () => setStep((s) => Math.max(s - 1, 1) as Step);
 
   const detectedCarrier = detectCarrier(phone);
-  const isFaibaBundles = network === "Faiba Bundles";
+  const isFaibaBundles = (network?.toLowerCase() === "faiba bundles") && IS_FAIBA_BUNDLES_ENABLED;
   const effectiveNetwork: Network = (
     isFaibaBundles ? "Faiba Bundles" :
     detectedCarrier.name === "AIRTEL" ? "Airtel" :
@@ -86,8 +130,10 @@ function AirtimeContent() {
     : (amount > 2 && amount < 7000 && Number.isInteger(amount));
 
   const orderPayload: OrderPayload = {
-    serviceId: isFaibaBundles ? 'faiba-data' : `${effectiveNetwork.toLowerCase()}-airtime`,
-    serviceName: isFaibaBundles ? `Faiba ${selectedBundle?.name || 'Data Bundle'}` : `${effectiveNetwork} Airtime`,
+    serviceId: isFaibaBundles ? "faiba-data" : `${effectiveNetwork.toLowerCase()}-airtime`,
+    serviceName: isFaibaBundles 
+      ? `Faiba ${selectedBundle?.name || 'Bundle'}` 
+      : `${effectiveNetwork} Airtime`,
     provider: isFaibaBundles ? 'Faiba' : effectiveNetwork,
     destination: phone,
     amount: amount,
@@ -100,6 +146,15 @@ function AirtimeContent() {
     <main className="min-h-screen bg-background pt-24 pb-16">
       <div className="container max-w-3xl mx-auto px-4">
         
+        {/* Breadcrumb Navigation */}
+        <Breadcrumbs 
+          items={[
+            { label: "Services", href: "/services" },
+            { label: "Buy Airtime" }
+          ]} 
+          className="mb-4"
+        />
+
         {/* Header (hidden during final step) */}
         {step < 5 && (
           <div className="mb-8">
@@ -116,7 +171,15 @@ function AirtimeContent() {
               </div>
               <h1 className="text-3xl font-bold">Buy Airtime</h1>
             </div>
-            <p className="text-muted-foreground">Instant airtime top-up for Safaricom, Airtel, Telkom & Faiba.</p>
+            <p className="text-muted-foreground">Instant airtime top-up for Safaricom, Airtel, Telkom, Equitel & Faiba.</p>
+            <div className="mt-2">
+              <Link 
+                href="/services/data" 
+                className="inline-flex items-center gap-1.5 text-xs text-primary font-medium hover:underline"
+              >
+                Need internet data bundles instead? Browse Safaricom, Airtel & Faiba packages →
+              </Link>
+            </div>
           </div>
         )}
 

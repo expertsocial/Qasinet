@@ -139,14 +139,13 @@ export default function SavedBeneficiariesPage() {
     switch (b.type) {
       case "phone":
         return `/services/airtime?phone=${encodeURIComponent(b.accountNumber)}`;
-      case "electricity":
-        return `/services/electricity?meter=${encodeURIComponent(b.accountNumber)}`;
-      case "tv":
-        return `/services/tv?account=${encodeURIComponent(b.accountNumber)}`;
       case "internet":
-        return `/services/internet?account=${encodeURIComponent(b.accountNumber)}`;
+        return `/services/data?phone=${encodeURIComponent(b.accountNumber)}`;
+      case "electricity":
+      case "tv":
+      case "water":
       default:
-        return `/services/airtime?phone=${encodeURIComponent(b.accountNumber)}`;
+        return `/services/airtime`;
     }
   };
 

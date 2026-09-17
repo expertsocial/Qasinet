@@ -9,7 +9,7 @@ export function FaqSection() {
   const faqItems = [
     {
       title: "Do I need an account to use QasiNet?",
-      content: "No, you do not need an account. QasiNet is service-first, meaning you can purchase airtime, data, or pay bills instantly as a guest. However, creating an account helps you track your transaction history and speeds up future purchases.",
+      content: "No, you do not need an account. QasiNet is service-first, meaning you can purchase airtime and data bundles instantly as a guest. However, creating an account helps you track your transaction history and speeds up future purchases.",
     },
     {
       title: "How do I purchase a service?",

@@ -1,21 +1,61 @@
 import React from "react";
 import { DetailedServiceCard } from "@/components/services/DetailedServiceCard";
-import { Metadata } from "next";
+import type { Metadata } from "next";
 import { Smartphone, Zap, Sparkles } from "lucide-react";
 import { getGroupedServices } from "@/lib/services/registry";
+import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
+
+const siteUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://qasinet.vercel.app';
 
 export const metadata: Metadata = {
-  title: "Services Directory | QasiNet",
-  description: "Browse our complete catalog of certified airtime and high-speed data bundles across Safaricom, Airtel, Telkom, Equitel, and Faiba.",
+  title: "Digital Services & Bundles Directory",
+  description: "Browse our complete catalog of certified airtime top-ups and high-speed data bundles across Safaricom, Airtel, Telkom, Equitel, and Faiba with instant M-Pesa delivery.",
+  alternates: {
+    canonical: "/services",
+  },
+  openGraph: {
+    title: "Digital Services & Bundles Directory | QasiNet",
+    description: "Certified airtime top-ups and high-speed data bundles across Kenya.",
+    url: `${siteUrl}/services`,
+  },
 };
 
 export default function ServicesDirectoryPage() {
   const serviceGroups = getGroupedServices();
 
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": siteUrl,
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Services",
+        "item": `${siteUrl}/services`,
+      },
+    ],
+  };
+
   return (
-    <div className="flex flex-col min-h-screen pt-12 pb-20">
+    <div className="flex flex-col min-h-screen pt-4 pb-20">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
+      
+      {/* Breadcrumb Navigation */}
+      <div className="container mx-auto px-4 md:px-6 max-w-7xl pt-4">
+        <Breadcrumbs items={[{ label: "Services" }]} />
+      </div>
+
       {/* Header Banner */}
-      <section className="py-12 sm:py-16 text-center max-w-3xl mx-auto px-4 space-y-4">
+      <section className="py-8 sm:py-12 text-center max-w-3xl mx-auto px-4 space-y-4">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase tracking-wider">
           <Sparkles className="w-3.5 h-3.5" /> Direct Services Marketplace
         </div>

@@ -2,8 +2,15 @@ import React from "react";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Service Terms | QasiNet",
-  description: "Terms and conditions specific to digital services offered on QasiNet.",
+  title: "Service Terms",
+  description: "Terms and fulfillment conditions specific to mobile airtime and data bundles offered on QasiNet.",
+  alternates: {
+    canonical: "/service-terms",
+  },
+  openGraph: {
+    title: "Service Terms | QasiNet",
+    description: "Terms and fulfillment conditions specific to mobile airtime and data bundles offered on QasiNet.",
+  },
 };
 
 export default function ServiceTermsPage() {
@@ -12,37 +19,30 @@ export default function ServiceTermsPage() {
       <section className="bg-secondary/30 py-16">
         <div className="container mx-auto px-4 md:px-6 max-w-4xl">
           <h1 className="text-4xl font-bold tracking-tight text-foreground mb-4">Service Terms</h1>
-          <p className="text-muted-foreground">Last updated: [Date Editable]</p>
+          <p className="text-muted-foreground">Last updated: September 2026</p>
         </div>
       </section>
 
       <section className="py-12 container mx-auto px-4 md:px-6 max-w-4xl">
         <div className="prose prose-slate dark:prose-invert max-w-none space-y-8">
           <div className="space-y-4">
-            <h2 className="text-2xl font-bold text-foreground">1. Airtime and Data</h2>
+            <h2 className="text-2xl font-bold text-foreground">1. Airtime Top-ups</h2>
             <p className="text-muted-foreground leading-relaxed">
-              Airtime and data purchases are fulfilled instantly upon payment verification. QasiNet supports major Kenyan networks (Safaricom, Airtel, Telkom, Equitel, Faiba). Availability is subject to the respective network operator's uptime.
+              Airtime purchases across Safaricom, Airtel, Telkom, Equitel, and Faiba are fulfilled automatically upon M-Pesa payment confirmation. Airtime credit is delivered straight to the destination mobile number provided at checkout. Service availability is subject to the respective telecom operator&apos;s real-time API uptime.
             </p>
           </div>
 
           <div className="space-y-4">
-            <h2 className="text-2xl font-bold text-foreground">2. TV Subscriptions</h2>
+            <h2 className="text-2xl font-bold text-foreground">2. Internet Data Bundles</h2>
             <p className="text-muted-foreground leading-relaxed">
-              Payments for TV services (DStv, GOtv, Zuku, StarTimes) require accurate account or smartcard numbers. QasiNet will attempt to verify the account details before processing the payment, where supported by the provider.
+              Data packages (including Faiba 4G packages, Safaricom Super/Okoa data bundles, and Airtel bundles) are credited directly to the target line. Package validity, data allowance volumes, and expiry rules follow each carrier&apos;s published service specifications.
             </p>
           </div>
 
           <div className="space-y-4">
-            <h2 className="text-2xl font-bold text-foreground">3. Utility Payments</h2>
+            <h2 className="text-2xl font-bold text-foreground">3. Provider Pricing & Fees</h2>
             <p className="text-muted-foreground leading-relaxed">
-              For prepaid utilities (e.g., KPLC Tokens), a token will be generated and provided upon successful transaction. For postpaid accounts, the payment will be reflected in your utility account based on the provider's standard processing times.
-            </p>
-          </div>
-          
-          <div className="space-y-4">
-            <h2 className="text-2xl font-bold text-foreground">4. Provider Pricing</h2>
-            <p className="text-muted-foreground leading-relaxed">
-              The final price presented on QasiNet includes the service cost and any applicable service fees. Prices are subject to change without prior notice based on supplier adjustments.
+              All package prices and fees are transparently displayed on checkout prior to payment prompt generation. Bundle prices are subject to adjustments based on telco tariff changes.
             </p>
           </div>
         </div>

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { ServiceGrid } from "@/components/services/ServiceGrid";
 import { buttonVariants } from "@/components/ui/Button";
 import { 
@@ -22,6 +23,19 @@ import { HowItWorks } from "@/components/home/HowItWorks";
 import { FaqSection } from "@/components/home/FaqSection";
 import { cn } from "@/lib/utils";
 import { getServiceCategories } from "@/lib/services/registry";
+
+export const metadata: Metadata = {
+  title: "Instant Airtime & Data Bundles in Kenya | M-Pesa Top Up",
+  description: "Buy Safaricom, Airtel, Telkom, Equitel, and Faiba airtime or high-speed data bundles with instant automated M-Pesa delivery. 24/7 automated vending across Kenya.",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: "Instant Airtime & Data Bundles in Kenya | QasiNet",
+    description: "Buy Safaricom, Airtel, Telkom, Equitel, and Faiba airtime or high-speed data bundles with instant automated M-Pesa delivery.",
+    url: "/",
+  },
+};
 
 export default function Home() {
   return (

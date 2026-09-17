@@ -2,8 +2,15 @@ import React from "react";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Terms and Conditions | QasiNet",
-  description: "Terms and conditions for using QasiNet digital services.",
+  title: "Terms and Conditions",
+  description: "Terms and Conditions governing the use of QasiNet's airtime and internet data bundle services.",
+  alternates: {
+    canonical: "/terms",
+  },
+  openGraph: {
+    title: "Terms and Conditions | QasiNet",
+    description: "Terms and Conditions governing the use of QasiNet's airtime and internet data bundle services.",
+  },
 };
 
 export default function TermsPage() {
@@ -12,7 +19,7 @@ export default function TermsPage() {
       <section className="bg-secondary/30 py-16">
         <div className="container mx-auto px-4 md:px-6 max-w-4xl">
           <h1 className="text-4xl font-bold tracking-tight text-foreground mb-4">Terms and Conditions</h1>
-          <p className="text-muted-foreground">Last updated: [Date Editable]</p>
+          <p className="text-muted-foreground">Last updated: September 2026</p>
         </div>
       </section>
 
@@ -21,37 +28,37 @@ export default function TermsPage() {
           <div className="space-y-4">
             <h2 className="text-2xl font-bold text-foreground">1. Introduction</h2>
             <p className="text-muted-foreground leading-relaxed">
-              Welcome to QasiNet ("we", "our", "us"). These Terms and Conditions govern your use of our digital services marketplace, including but not limited to the purchase of airtime, data bundles, TV subscriptions, and utility payments. By accessing or using our platform, you agree to be bound by these terms.
+              Welcome to QasiNet (&quot;we&quot;, &quot;our&quot;, &quot;us&quot;). These Terms and Conditions govern your use of our digital services marketplace, focusing on the purchase and instant delivery of mobile airtime and internet data bundles across Kenyan telecommunication networks. By accessing or using our platform, you agree to be bound by these terms.
             </p>
           </div>
 
           <div className="space-y-4">
             <h2 className="text-2xl font-bold text-foreground">2. Services Offered</h2>
             <p className="text-muted-foreground leading-relaxed">
-              QasiNet acts as an intermediary platform for the sale of third-party digital services. We process transactions through integrated APIs (e.g., Kyanda). While we strive for immediate service delivery (vending), actual delivery times may vary depending on the third-party service provider's network availability.
+              QasiNet acts as an authorized intermediary platform for the electronic vending of airtime top-ups (Safaricom, Airtel, Telkom, Equitel, Faiba) and internet data bundles. While we strive for immediate service vending upon M-Pesa payment confirmation, actual transmission times may occasionally vary depending on the telecommunications operator&apos;s network status.
             </p>
           </div>
 
           <div className="space-y-4">
             <h2 className="text-2xl font-bold text-foreground">3. User Responsibilities</h2>
             <ul className="list-disc pl-6 text-muted-foreground space-y-2">
-              <li>You are responsible for providing accurate information (e.g., correct phone numbers, account numbers, meter numbers) when purchasing a service.</li>
-              <li>You agree not to use the platform for any illegal or unauthorized purpose.</li>
-              <li>You are responsible for keeping any account credentials secure if you choose to register.</li>
+              <li>You are strictly responsible for providing the correct recipient phone number when ordering airtime or data packages.</li>
+              <li>You agree not to use the platform for any fraudulent, illegal, or unauthorized transactions.</li>
+              <li>You are responsible for safeguarding your device and M-Pesa PIN during transaction authorization.</li>
             </ul>
           </div>
 
           <div className="space-y-4">
             <h2 className="text-2xl font-bold text-foreground">4. Liability</h2>
             <p className="text-muted-foreground leading-relaxed">
-              [EDITABLE: Company Name] is not liable for direct or indirect losses arising from service downtime experienced by third-party telecom operators or utility companies.
+              QasiNet is not liable for indirect losses, lost profits, or delays resulting from third-party mobile network operator outages, scheduled maintenance, or inaccurate phone numbers supplied by the customer.
             </p>
           </div>
 
           <div className="space-y-4">
             <h2 className="text-2xl font-bold text-foreground">5. Changes to Terms</h2>
             <p className="text-muted-foreground leading-relaxed">
-              We reserve the right to modify these terms at any time. We will notify users of any material changes by updating the "Last updated" date on this page.
+              We reserve the right to modify these terms as our platform evolves or as regulatory policies require. We will notify users of any material changes by updating the date on this page.
             </p>
           </div>
           
