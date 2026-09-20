@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-const siteUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://qasinet.vercel.app';
+const siteUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://qasinet.com';
 
 export const metadata: Metadata = {
   title: "Buy Airtime Online Kenya | Safaricom, Airtel, Telkom, Equitel, Faiba",

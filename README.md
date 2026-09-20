@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://qasinet.vercel.app"><img src="https://img.shields.io/badge/Live_Site-qasinet.vercel.app-2563eb?style=for-the-badge&logo=vercel&logoColor=white" alt="Live Site" /></a>
+  <a href="https://qasinet.com"><img src="https://img.shields.io/badge/Live_Site-qasinet.com-2563eb?style=for-the-badge&logo=vercel&logoColor=white" alt="Live Site" /></a>
   <a href="https://wa.me/254722647928"><img src="https://img.shields.io/badge/WhatsApp-Chat_with_Developer-25D366?style=for-the-badge&logo=whatsapp&logoColor=white" alt="WhatsApp" /></a>
   <a href="mailto:sanaregeorge48@gmail.com"><img src="https://img.shields.io/badge/Email-Hire_George_Sanare-EA4335?style=for-the-badge&logo=gmail&logoColor=white" alt="Email" /></a>
 </p>
@@ -27,7 +27,7 @@
 
 ## 📌 Executive Summary
 
-**QasiNet** ([qasinet.vercel.app](https://qasinet.vercel.app)) is a fintech and telecommunications reselling platform engineered for **instant, 24/7 automated delivery** of airtime and high-speed data bundles across Kenyan mobile networks.
+**QasiNet** ([qasinet.com](https://qasinet.com)) is a fintech and telecommunications reselling platform engineered for **instant, 24/7 automated delivery** of airtime and high-speed data bundles across Kenyan mobile networks.
 
 By directly interfacing with **Safaricom M-Pesa Daraja (STK Push & C2B Paybill)**, the **Bingwa Sokoni Reseller API**, and upstream telecom gateways, QasiNet automates the entire order lifecycle: from payment collection and financial verification to automated bundle vending, customer status tracking, and digital receipt dispatch.
 
@@ -46,7 +46,7 @@ By directly interfacing with **Safaricom M-Pesa Daraja (STK Push & C2B Paybill)*
 | **Bingwa Sokoni (Safaricom)** | Discount Bundles (Daily, Weekly, Monthly) | Bingwa Sokoni Reseller Till API |
 | **Bingwa Sokoni (Airtel)** | Cheap Data Bundles & Heavy Surfing Packs | Bingwa Sokoni Reseller Till API |
 
-> 🔗 **Explore live bundles:** [https://qasinet.vercel.app/services](https://qasinet.vercel.app/services)
+> 🔗 **Explore live bundles:** [https://qasinet.com/services](https://qasinet.com/services)
 
 ---
 
@@ -67,7 +67,7 @@ By directly interfacing with **Safaricom M-Pesa Daraja (STK Push & C2B Paybill)*
 - **Float Pre-Check & Circuit Breaker**: Real-time balance verification prevents customer checkout initiation if upstream merchant wallet float is depleted.
 
 ### 3. Live Order Tracking & Customer Verification
-- Dedicated order tracker at [qasinet.vercel.app/track](https://qasinet.vercel.app/track).
+- Dedicated order tracker at [qasinet.com/track](https://qasinet.com/track).
 - Strictly verifies order ownership against the customer phone number before exposing transaction metadata or tokens, preventing telephone enumeration and privacy leakage.
 
 ### 4. Progressive Web App (PWA) & Offline Resiliency
@@ -174,7 +174,7 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 - **WhatsApp / Phone**: [**+254 722 647 928**](https://wa.me/254722647928) *(Quickest response)*
 - **Email**: [**sanaregeorge48@gmail.com**](mailto:sanaregeorge48@gmail.com)
 - **GitHub**: [@expertsocial](https://github.com/expertsocial)
-- **Portfolio / Live System**: [https://qasinet.vercel.app](https://qasinet.vercel.app)
+- **Portfolio / Live System**: [https://qasinet.com](https://qasinet.com)
 
 ---
 

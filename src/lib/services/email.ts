@@ -42,7 +42,7 @@ export function formatTokenForDisplay(rawToken: string): string {
 }
 
 export function generateReceiptHtml(params: ReceiptEmailParams): string {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://qasinet.vercel.app';
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://qasinet.com';
   const receiptUrl = `${baseUrl}/receipt/${encodeURIComponent(params.reference)}`;
   const formattedDate = params.date
     ? new Date(params.date).toLocaleString('en-KE', { timeZone: 'Africa/Nairobi' })
@@ -294,7 +294,7 @@ export async function sendReceiptEmail(params: ReceiptEmailParams): Promise<Send
  */
 export async function sendAdminRefundAlertEmail(params: AdminRefundAlertParams): Promise<SendEmailResult> {
   const adminEmail = process.env.ADMIN_ALERT_EMAIL || 'qasinetltd@gmail.com';
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://qasinet.vercel.app';
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://qasinet.com';
   const adminTxUrl = `${baseUrl}/admin/transactions?search=${encodeURIComponent(params.reference)}`;
   const formattedDate = params.date
     ? new Date(params.date).toLocaleString('en-KE', { timeZone: 'Africa/Nairobi' })

@@ -2,7 +2,7 @@ import type { MetadataRoute } from 'next';
 import { getVisibleServices } from '@/lib/services/registry';
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://qasinet.vercel.app';
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://qasinet.com';
   const lastModified = new Date();
 
   // Core static public pages

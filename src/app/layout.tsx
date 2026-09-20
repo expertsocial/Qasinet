@@ -20,7 +20,7 @@ const geistMono = Geist_Mono({
   preload: true,
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://qasinet.vercel.app';
+const siteUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://qasinet.com';
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

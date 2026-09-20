@@ -5,7 +5,7 @@ import { Smartphone, Zap, Sparkles } from "lucide-react";
 import { getGroupedServices } from "@/lib/services/registry";
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 
-const siteUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://qasinet.vercel.app';
+const siteUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://qasinet.com';
 
 export const metadata: Metadata = {
   title: "Digital Services & Bundles Directory",

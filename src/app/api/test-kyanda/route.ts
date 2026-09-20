@@ -27,7 +27,7 @@ export async function GET(req: Request) {
     const apiKey = process.env.KYANDA_API_KEY || '';
     const merchantId = process.env.KYANDA_MERCHANT_ID || '';
     const securityKey = process.env.KYANDA_SECURITY_KEY || '';
-    const callbackURL = process.env.KYANDA_CALLBACK_URL || 'https://qasinet.vercel.app/api/webhooks/kyanda';
+    const callbackURL = process.env.KYANDA_CALLBACK_URL || 'https://qasinet.com/api/webhooks/kyanda';
 
     const envInfo = {
       baseUrl,

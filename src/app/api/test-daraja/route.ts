@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
         PartyA: phone,
         PartyB: combo.partyB,
         PhoneNumber: phone,
-        CallBackURL: 'https://qasinet.vercel.app/api/webhooks/mpesa',
+        CallBackURL: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://qasinet.com'}/api/webhooks/mpesa`,
         AccountReference: 'Test',
         TransactionDesc: 'Test'
       };

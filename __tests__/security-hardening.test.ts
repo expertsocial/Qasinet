@@ -5,7 +5,7 @@ import { NextRequest } from 'next/server';
 describe('Security Hardening Tests', () => {
   describe('Client IP Extraction', () => {
     it('extracts the first public client IP from comma-separated X-Forwarded-For header', () => {
-      const req = new Request('https://qasinet.vercel.app/api/transactions', {
+      const req = new Request('https://qasinet.com/api/transactions', {
         headers: {
           'x-forwarded-for': '197.232.55.10, 10.0.0.1, 172.16.0.1',
         },
@@ -16,7 +16,7 @@ describe('Security Hardening Tests', () => {
     });
 
     it('falls back to X-Real-IP if X-Forwarded-For is missing', () => {
-      const req = new Request('https://qasinet.vercel.app/api/transactions', {
+      const req = new Request('https://qasinet.com/api/transactions', {
         headers: {
           'x-real-ip': '102.135.12.88',
         },
@@ -27,7 +27,7 @@ describe('Security Hardening Tests', () => {
     });
 
     it('falls back to 127.0.0.1 if no proxy headers are present', () => {
-      const req = new Request('https://qasinet.vercel.app/api/transactions');
+      const req = new Request('https://qasinet.com/api/transactions');
       const ip = getClientIp(req);
       expect(ip).toBe('127.0.0.1');
     });
@@ -69,7 +69,7 @@ describe('Security Hardening Tests', () => {
     it('blocks /api/test-daraja in production with 404', async () => {
       vi.stubEnv('NODE_ENV', 'production');
       const { GET } = await import('@/app/api/test-daraja/route');
-      const req = new NextRequest('https://qasinet.vercel.app/api/test-daraja');
+      const req = new NextRequest('https://qasinet.com/api/test-daraja');
 
       const response = await GET(req);
       expect(response.status).toBe(404);
@@ -80,7 +80,7 @@ describe('Security Hardening Tests', () => {
     it('blocks /api/test-kyanda in production with 404', async () => {
       vi.stubEnv('NODE_ENV', 'production');
       const { GET } = await import('@/app/api/test-kyanda/route');
-      const req = new Request('https://qasinet.vercel.app/api/test-kyanda');
+      const req = new Request('https://qasinet.com/api/test-kyanda');
 
       const response = await GET(req);
       expect(response.status).toBe(404);
@@ -99,7 +99,7 @@ describe('Security Hardening Tests', () => {
     it('returns 401 when CRON_SECRET is not configured', async () => {
       delete process.env.CRON_SECRET;
       const { GET } = await import('@/app/api/cron/reconcile/route');
-      const req = new Request('https://qasinet.vercel.app/api/cron/reconcile');
+      const req = new Request('https://qasinet.com/api/cron/reconcile');
 
       const response = await GET(req);
       expect(response.status).toBe(401);
@@ -110,7 +110,7 @@ describe('Security Hardening Tests', () => {
     it('returns 401 when Authorization header does not match CRON_SECRET', async () => {
       process.env.CRON_SECRET = 'super-secret-cron-token-xyz';
       const { GET } = await import('@/app/api/cron/reconcile/route');
-      const req = new Request('https://qasinet.vercel.app/api/cron/reconcile', {
+      const req = new Request('https://qasinet.com/api/cron/reconcile', {
         headers: {
           authorization: 'Bearer wrong-secret',
         },
@@ -132,7 +132,7 @@ describe('Security Hardening Tests', () => {
       process.env.BINGWA_WEBHOOK_SECRET = 'secret-token-12345';
       const { POST } = await import('@/app/api/webhooks/bingwa/route');
 
-      const req = new NextRequest('https://qasinet.vercel.app/api/webhooks/bingwa', {
+      const req = new NextRequest('https://qasinet.com/api/webhooks/bingwa', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
