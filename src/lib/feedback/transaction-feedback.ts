@@ -153,11 +153,30 @@ function resolveFeedback({
     };
   }
 
-  // 5. INSUFFICIENT FLOAT / SERVICE UNAVAILABLE
+  // 5. SERVICE LOCKED / MAINTENANCE
+  if (
+    normStatus === 'SERVICE_LOCKED' ||
+    normMsg.includes('service_locked') ||
+    normMsg.includes('locked') ||
+    normMsg.includes('temporarily paused')
+  ) {
+    return {
+      category: 'SERVICE_LOCKED',
+      severity: 'warning',
+      headline: 'Service Temporarily Paused',
+      context: message || 'This service is currently undergoing scheduled maintenance or is temporarily paused.',
+      nextStepGuidance: 'Please check back shortly or select another utility from our catalog.',
+      badgeLabel: 'Under Maintenance',
+      showRetry: false,
+      showSupport: true,
+      isRefundPending: false,
+    };
+  }
+
+  // 6. INSUFFICIENT FLOAT / SERVICE UNAVAILABLE
   if (
     normMsg.includes('float') ||
     normMsg.includes('service_unavailable') ||
-    normMsg.includes('temporarily unavailable') ||
     normMsg.includes('gateway balance') ||
     normMsg.includes('insufficient funds')
   ) {

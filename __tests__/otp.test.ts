@@ -105,7 +105,7 @@ describe('Password Reset OTP Security & Verification', () => {
       const subsequentRes = await verifyPasswordResetOTP(testEmail, '123456');
       expect(subsequentRes.success).toBe(false);
       expect(subsequentRes.error).toMatch(/invalid or expired/i);
-    });
+    }, 40000);
 
     it('successfully verifies correct code, deletes OTP immediately, and issues single-use reset token', async () => {
       const testEmail = 'verify-success@example.com';

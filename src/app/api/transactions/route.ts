@@ -4,6 +4,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { initTransactionSchema } from '@/lib/validations/transaction';
 import { TransactionOrchestrator } from '@/lib/services/orchestrator';
 import { isServiceEnabled, getServiceById } from '@/lib/services/registry';
+import { getLiveServiceStatus } from '@/lib/services/service-lock';
 import { QasiNetError } from '@/lib/errors';
 import { MpesaDarajaProvider } from '@/lib/providers/mpesa/provider';
 import { floatService } from '@/lib/services/float';
@@ -35,10 +36,25 @@ export async function POST(req: NextRequest) {
     }
     const { serviceSlug, productId, destination, amount, guestPhone } = parsed.data;
 
-    // 1b. Service Availability Check against Unified Service Registry
+    // 1b. Live Database-Backed Service Lock & Availability Check (with 10s memory cache)
+    const liveStatus = await getLiveServiceStatus(serviceSlug);
     const regService = getServiceById(serviceSlug);
-    if (regService && regService.status !== 'enabled') {
-      console.warn(`[API] Transaction initiation rejected: service ${serviceSlug} is currently paused/disabled.`);
+    const serviceName = regService?.title || serviceSlug;
+
+    if (liveStatus.status === 'locked' || liveStatus.status === 'hidden') {
+      console.warn(`[API] Transaction initiation rejected: service ${serviceSlug} is locked by admin. Reason: ${liveStatus.reason}`);
+      return NextResponse.json({
+        success: false,
+        error: {
+          code: 'SERVICE_LOCKED',
+          message: liveStatus.customerFacingMessage || `${serviceName} is temporarily unavailable, please check back shortly.`
+        }
+      }, { status: 503 });
+    }
+
+    // Static code-level registry fallback check for services with no database lock row
+    if (regService && regService.status !== 'enabled' && liveStatus.isFallback) {
+      console.warn(`[API] Transaction initiation rejected: service ${serviceSlug} is currently paused/disabled in static registry.`);
       return NextResponse.json({
         success: false,
         error: {

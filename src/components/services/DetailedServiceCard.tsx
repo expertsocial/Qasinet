@@ -14,8 +14,9 @@ interface DetailedServiceCardProps {
   href: string;
   ctaText: string;
   badge?: string;
-  status?: ServiceStatus;
+  status?: ServiceStatus | "locked";
   comingSoonMessage?: string;
+  customerMessage?: string;
 }
 
 export function DetailedServiceCard({
@@ -27,8 +28,10 @@ export function DetailedServiceCard({
   badge = "Instant",
   status = "enabled",
   comingSoonMessage,
+  customerMessage,
 }: DetailedServiceCardProps) {
-  const isComingSoon = status === "coming_soon";
+  const isLocked = status === "locked";
+  const isComingSoon = status === "coming_soon" || isLocked;
 
   return (
     <div className={cn(
@@ -63,7 +66,7 @@ export function DetailedServiceCard({
               ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
               : "bg-primary/10 text-primary border-primary/20"
           )}>
-            {isComingSoon ? "Coming Soon" : badge}
+            {isLocked ? "Paused" : isComingSoon ? "Coming Soon" : badge}
           </span>
         </div>
         
@@ -74,7 +77,9 @@ export function DetailedServiceCard({
           {title}
         </h3>
         <p className="mb-6 text-xs sm:text-sm text-muted-foreground leading-relaxed">
-          {isComingSoon && comingSoonMessage ? comingSoonMessage : description}
+          {isLocked
+            ? (customerMessage || comingSoonMessage || "Temporarily paused for maintenance.")
+            : (isComingSoon && comingSoonMessage ? comingSoonMessage : description)}
         </p>
       </div>
 
@@ -82,7 +87,7 @@ export function DetailedServiceCard({
         {isComingSoon ? (
           <div className="flex items-center justify-center gap-2 h-10 px-4 rounded-2xl bg-secondary/50 text-muted-foreground font-semibold text-xs border border-border/40 cursor-default">
             <Clock className="w-3.5 h-3.5 text-amber-400" />
-            <span>Available Soon</span>
+            <span>{isLocked ? "Maintenance" : "Available Soon"}</span>
           </div>
         ) : (
           <Link

@@ -13,8 +13,9 @@ interface ServiceCardProps {
   logoSrc: string;
   badge?: string;
   tagline?: string;
-  status?: ServiceStatus;
+  status?: ServiceStatus | "locked";
   comingSoonMessage?: string;
+  customerMessage?: string;
   onClick?: () => void;
   className?: string;
   delay?: number;
@@ -28,18 +29,23 @@ export function ServiceCard({
   tagline,
   status = "enabled",
   comingSoonMessage,
+  customerMessage,
   onClick,
   className,
   delay = 0,
 }: ServiceCardProps) {
-  const isComingSoon = status === "coming_soon";
+  const isLocked = status === "locked";
+  const isComingSoon = status === "coming_soon" || isLocked;
 
   const handleClick = () => {
     if (isComingSoon) {
+      const msg = isLocked
+        ? (customerMessage || comingSoonMessage || `${title} is temporarily paused for maintenance.`)
+        : (comingSoonMessage || `${title} is launching soon! Our team is finalizing provider connectivity.`);
       toast(
-        comingSoonMessage || `${title} is launching soon! Our team is finalizing provider connectivity.`,
+        msg,
         {
-          icon: "⏳",
+          icon: isLocked ? "🔧" : "⏳",
           style: {
             borderRadius: "16px",
             background: "#18181b",
@@ -102,7 +108,7 @@ export function ServiceCard({
               ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
               : "bg-primary/10 text-primary border-primary/20"
           )}>
-            {isComingSoon ? "Coming Soon" : badge}
+            {isLocked ? "Paused" : isComingSoon ? "Coming Soon" : badge}
           </span>
           
           <div className={cn(

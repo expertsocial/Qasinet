@@ -3,7 +3,10 @@ import { DetailedServiceCard } from "@/components/services/DetailedServiceCard";
 import type { Metadata } from "next";
 import { Smartphone, Zap, Sparkles } from "lucide-react";
 import { getGroupedServices } from "@/lib/services/registry";
+import { getAllLiveServiceStatuses } from "@/lib/services/service-lock";
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
+
+export const dynamic = 'force-dynamic';
 
 const siteUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://qasinet.com';
 
@@ -20,8 +23,11 @@ export const metadata: Metadata = {
   },
 };
 
-export default function ServicesDirectoryPage() {
-  const serviceGroups = getGroupedServices();
+export default async function ServicesDirectoryPage() {
+  const [liveStatuses, serviceGroups] = await Promise.all([
+    getAllLiveServiceStatuses(),
+    Promise.resolve(getGroupedServices()),
+  ]);
 
   const breadcrumbSchema = {
     "@context": "https://schema.org",
@@ -98,25 +104,36 @@ export default function ServicesDirectoryPage() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
-                {group.services.map((service) => (
-                  <DetailedServiceCard 
-                    key={service.id}
-                    id={service.id}
-                    title={service.title}
-                    description={service.description}
-                    logoSrc={service.logoSrc}
-                    href={service.href}
-                    ctaText={
-                      service.category === 'airtime' ? `Buy ${service.shortName}` :
-                      service.category === 'data' ? `Browse ${service.shortName}` :
-                      service.category === 'electricity' ? `Vend ${service.shortName}` :
-                      `Pay ${service.shortName}`
-                    }
-                    badge={service.badge}
-                    status={service.status}
-                    comingSoonMessage={service.comingSoonMessage}
-                  />
-                ))}
+                {group.services
+                  .filter((service) => {
+                    const live = liveStatuses[service.id];
+                    return live ? live.status !== 'hidden' : service.status !== 'hidden';
+                  })
+                  .map((service) => {
+                    const live = liveStatuses[service.id];
+                    const effectiveStatus = live ? live.status : service.status;
+                    const effectiveCustomerMessage = live?.customerMessage || service.comingSoonMessage;
+                    return (
+                      <DetailedServiceCard 
+                        key={service.id}
+                        id={service.id}
+                        title={service.title}
+                        description={service.description}
+                        logoSrc={service.logoSrc}
+                        href={service.href}
+                        ctaText={
+                          service.category === 'airtime' ? `Buy ${service.shortName}` :
+                          service.category === 'data' ? `Browse ${service.shortName}` :
+                          service.category === 'electricity' ? `Vend ${service.shortName}` :
+                          `Pay ${service.shortName}`
+                        }
+                        badge={service.badge}
+                        status={effectiveStatus}
+                        customerMessage={effectiveCustomerMessage}
+                        comingSoonMessage={service.comingSoonMessage}
+                      />
+                    );
+                  })}
               </div>
             </div>
           );

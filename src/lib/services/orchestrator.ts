@@ -2,6 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { QasiNetError } from '../errors';
 import { sendReceiptEmail, sendAdminRefundAlertEmail } from './email';
 import { isServiceEnabled, getServiceById } from './registry';
+import { getLiveServiceStatus } from './service-lock';
 
 export type TransactionStatus =
   | 'CREATED'
@@ -144,10 +145,16 @@ export class TransactionOrchestrator {
       }
     }
 
-    // Enforce service availability for registered services in registry
+    // Enforce live service status (DB-backed live toggle with static registry fallback)
     const regService = getServiceById(params.serviceSlug);
-    if (regService && regService.status !== 'enabled') {
-      throw new QasiNetError('SERVICE_UNAVAILABLE', `${regService.title} is currently unavailable or undergoing maintenance.`);
+    if (regService) {
+      const liveStatus = await getLiveServiceStatus(params.serviceSlug);
+      if (liveStatus.status !== 'enabled') {
+        throw new QasiNetError(
+          'SERVICE_UNAVAILABLE',
+          liveStatus.customerMessage || `${liveStatus.title} is currently unavailable or undergoing maintenance.`
+        );
+      }
     }
 
     let pricingRule = service.pricing?.[0];

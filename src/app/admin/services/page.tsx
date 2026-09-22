@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { Layers, CheckCircle2, XCircle, ArrowRight, Settings2, Sparkles, Smartphone, Zap, Tv, Droplet, Wifi } from 'lucide-react';
+import { Layers, CheckCircle2, XCircle, ArrowRight, Settings2, Sparkles, Smartphone, Zap, Tv, Droplet, Wifi, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 
 function getServiceIcon(type: string, slug: string) {
@@ -50,7 +50,15 @@ export default async function AdminServicesPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/admin/services/control"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-bold transition-all shadow-sm"
+          >
+            <ShieldAlert className="w-4 h-4" />
+            <span>Live Service Control</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
           <span className="px-3 py-1.5 rounded-xl bg-neutral-900 border border-neutral-800 text-xs font-mono text-neutral-300">
             {services?.length || 0} Total Services
           </span>

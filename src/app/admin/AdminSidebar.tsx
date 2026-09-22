@@ -28,6 +28,7 @@ const NAV_ITEMS = [
   { name: "M-Pesa Logs", href: "/admin/mpesa", icon: Smartphone },
   { name: "Kyanda Ops", href: "/admin/kyanda", icon: Network, badge: "Live" },
   { name: "Services & Pricing", href: "/admin/services", icon: Layers },
+  { name: "Service Control", href: "/admin/services/control", icon: ShieldAlert, badge: "Killswitch" },
   { name: "Customers", href: "/admin/customers", icon: Users },
   { name: "Financial Reports", href: "/admin/reports", icon: BarChart3 },
   { name: "Support Tickets", href: "/admin/support", icon: LifeBuoy },

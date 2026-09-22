@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ServiceCard } from "./ServiceCard";
 import { 
@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { 
   getVisibleServices, 
   getGroupedServices, 
+  getServiceStatus,
   ServiceDefinition, 
   ServiceStatus 
 } from "@/lib/services/registry";
@@ -33,17 +34,56 @@ const CATEGORIES = [
 export function ServiceGrid() {
   const router = useRouter();
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [liveStatuses, setLiveStatuses] = useState<Record<string, { status: string; customerMessage?: string }>>({});
 
-  const visibleServices = getVisibleServices();
-  const serviceGroups = getGroupedServices();
+  useEffect(() => {
+    let isMounted = true;
+    fetch("/api/services/status")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (isMounted && data?.statuses) {
+          setLiveStatuses(data.statuses);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const getEffectiveStatus = (service: ServiceDefinition): ServiceStatus | "locked" => {
+    const live = liveStatuses[service.id];
+    return (live?.status as ServiceStatus | "locked") || getServiceStatus(service.id);
+  };
+
+  const getEffectiveCustomerMessage = (service: ServiceDefinition): string | undefined => {
+    const live = liveStatuses[service.id];
+    return live?.customerMessage || service.comingSoonMessage;
+  };
+
+  const isServiceVisible = (service: ServiceDefinition): boolean => {
+    const live = liveStatuses[service.id];
+    if (live) {
+      return live.status !== "hidden";
+    }
+    return getServiceStatus(service.id) !== "hidden";
+  };
+
+  const visibleServices = getVisibleServices().filter(isServiceVisible);
+  const serviceGroups = getGroupedServices()
+    .map((group) => ({
+      ...group,
+      services: group.services.filter(isServiceVisible),
+    }))
+    .filter((group) => group.services.length > 0);
 
   const activeCategoryIds = new Set(visibleServices.map((s) => s.category));
   const availableCategories = CATEGORIES.filter(
     (cat) => cat.id === "all" || activeCategoryIds.has(cat.id as any)
   );
 
-  const handleServiceClick = (category: string, serviceId: string, status: ServiceStatus) => {
-    if (status === "coming_soon") return; // Handled by card toast
+  const handleServiceClick = (category: string, serviceId: string, status: ServiceStatus | "locked") => {
+    if (status === "coming_soon" || status === "locked") return; // Handled by card toast
     router.push(`/services/${category}?provider=${serviceId}`);
   };
 
@@ -111,20 +151,25 @@ export function ServiceGrid() {
 
                 {/* Grid for this Group */}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-                  {group.services.map((service, index) => (
-                    <ServiceCard
-                      key={service.id}
-                      title={service.title}
-                      category={service.categoryLabel}
-                      logoSrc={service.logoSrc}
-                      badge={service.badge}
-                      tagline={service.tagline}
-                      status={service.status}
-                      comingSoonMessage={service.comingSoonMessage}
-                      delay={(groupIdx * 4 + index) * 25}
-                      onClick={() => handleServiceClick(service.category, service.id, service.status)}
-                    />
-                  ))}
+                  {group.services.map((service, index) => {
+                    const effStatus = getEffectiveStatus(service);
+                    const effMsg = getEffectiveCustomerMessage(service);
+                    return (
+                      <ServiceCard
+                        key={service.id}
+                        title={service.title}
+                        category={service.categoryLabel}
+                        logoSrc={service.logoSrc}
+                        badge={service.badge}
+                        tagline={service.tagline}
+                        status={effStatus}
+                        customerMessage={effMsg}
+                        comingSoonMessage={service.comingSoonMessage}
+                        delay={(groupIdx * 4 + index) * 25}
+                        onClick={() => handleServiceClick(service.category, service.id, effStatus)}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -139,20 +184,25 @@ export function ServiceGrid() {
             </span>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-            {filteredServices.map((service, index) => (
-              <ServiceCard
-                key={service.id}
-                title={service.title}
-                category={service.categoryLabel}
-                logoSrc={service.logoSrc}
-                badge={service.badge}
-                tagline={service.tagline}
-                status={service.status}
-                comingSoonMessage={service.comingSoonMessage}
-                delay={index * 25}
-                onClick={() => handleServiceClick(service.category, service.id, service.status)}
-              />
-            ))}
+            {filteredServices.map((service, index) => {
+              const effStatus = getEffectiveStatus(service);
+              const effMsg = getEffectiveCustomerMessage(service);
+              return (
+                <ServiceCard
+                  key={service.id}
+                  title={service.title}
+                  category={service.categoryLabel}
+                  logoSrc={service.logoSrc}
+                  badge={service.badge}
+                  tagline={service.tagline}
+                  status={effStatus}
+                  customerMessage={effMsg}
+                  comingSoonMessage={service.comingSoonMessage}
+                  delay={index * 25}
+                  onClick={() => handleServiceClick(service.category, service.id, effStatus)}
+                />
+              );
+            })}
           </div>
         </div>
       )}
