@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { User as SupabaseUser } from "@supabase/supabase-js";
+import { isAuthorizedAdminEmail } from "@/lib/auth/admin-check";
 
 export interface User {
   id: string;
@@ -54,12 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq("id", sbUser.id)
         .single();
 
-      const userIsAdmin =
-        !!adminRecord ||
-        sbUser.app_metadata?.role === 'ADMIN' ||
-        sbUser.app_metadata?.is_admin === true ||
-        sbUser.user_metadata?.role === 'ADMIN' ||
-        sbUser.email === 'qasinetltd@gmail.com';
+      const userIsAdmin = isAuthorizedAdminEmail(sbUser.email);
 
       setIsAdmin(userIsAdmin);
 
@@ -152,7 +148,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const register = async (data: { fullName: string; phone: string; email?: string; password: string }) => {
-    const email = data.email?.trim() || `${data.phone.replace(/\D/g, "")}@qasinet.app`;
+    if (!data.email || !data.email.includes("@")) {
+      throw new Error("A valid email address is required to register.");
+    }
+    const email = data.email.trim().toLowerCase();
 
     const { data: authData, error: signUpError } = await supabase.auth.signUp({
       email,

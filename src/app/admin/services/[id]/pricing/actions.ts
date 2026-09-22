@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { isAuthorizedAdminEmail } from '@/lib/auth/admin-check';
 import { revalidatePath } from 'next/cache';
 import { logAdminAction } from '@/lib/audit';
 
@@ -21,7 +22,7 @@ export async function savePricingAction(serviceId: string, productId: string | n
   const isAdmin = 
     user.app_metadata?.role === 'ADMIN' ||
     user.app_metadata?.is_admin === true ||
-    user.email === 'qasinetltd@gmail.com';
+    isAuthorizedAdminEmail(user.email);
 
   if (!isAdmin) {
     const { data: adminCheck } = await supabaseService.from('admins').select('id').eq('id', user.id).single();

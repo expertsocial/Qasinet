@@ -26,6 +26,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
+import { isAuthorizedAdminEmail } from "@/lib/auth/admin-check";
 import { getServiceCategories } from "@/lib/services/registry";
 
 export function Navbar() {
@@ -266,7 +267,7 @@ export function Navbar() {
                     <p className="text-[11px] text-muted-foreground font-mono truncate">{user.phone || user.email}</p>
                   </div>
 
-                  {user.isAdmin && (
+                  {isAuthorizedAdminEmail(user.email) && (
                     <Link 
                       href="/admin"
                       className="flex items-center gap-2.5 px-3 py-2 text-xs text-amber-400 font-bold hover:bg-amber-500/10 rounded-xl transition-colors"
@@ -389,7 +390,7 @@ export function Navbar() {
           
           {user ? (
             <div className="flex flex-col gap-2">
-              {user.isAdmin && (
+              {isAuthorizedAdminEmail(user.email) && (
                 <Link href="/admin" onClick={() => setMobileMenuOpen(false)}>
                   <Button variant="outline" className="w-full justify-start gap-2 border-amber-500/30 text-amber-400 rounded-xl">
                     <LayoutDashboard className="w-4 h-4 text-amber-400" />

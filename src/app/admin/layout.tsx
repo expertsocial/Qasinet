@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { isAuthorizedAdminEmail } from '@/lib/auth/admin-check';
 import { AdminSidebar } from './AdminSidebar';
 import { AdminHeaderControls } from '@/components/admin/AdminHeaderControls';
 import Link from 'next/link';
@@ -14,6 +15,11 @@ export default async function AdminLayout({
 
   if (!user) {
     redirect('/auth/login');
+  }
+
+  // Strict check: only qasinetltd.com admin email can access admin layout; all others redirect to /dashboard
+  if (!isAuthorizedAdminEmail(user.email)) {
+    redirect('/dashboard');
   }
 
   // Fetch admin profile for name display

@@ -28,6 +28,8 @@ interface StoredResetSession {
 
 // In-memory store backed by Supabase system_settings for serverless survivability
 const memoryOtpMap = new Map<string, StoredOTP>();
+const memoryLoginOtpMap = new Map<string, StoredOTP>();
+const memoryRegOtpMap = new Map<string, StoredOTP>();
 const memoryRateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const memoryResetSessionMap = new Map<string, StoredResetSession>();
 
@@ -110,6 +112,8 @@ export function clearRateLimitsForTesting(): void {
   memoryRateLimitMap.clear();
   memoryOtpMap.clear();
   memoryResetSessionMap.clear();
+  memoryLoginOtpMap.clear();
+  memoryRegOtpMap.clear();
 }
 
 /**
@@ -345,11 +349,6 @@ export async function verifyPasswordResetOTP(
     };
   }
 
-  // Increment attempts
-  otpEntry.attempts++;
-  memoryOtpMap.set(storeKey, otpEntry);
-  await saveToSystemSettings(storeKey, otpEntry);
-
   // Compute hash and compare using timingSafeEqual
   const candidateHash = hashOTP(cleanCode, otpEntry.salt);
   const isMatch =
@@ -357,6 +356,10 @@ export async function verifyPasswordResetOTP(
     crypto.timingSafeEqual(Buffer.from(candidateHash), Buffer.from(otpEntry.hash));
 
   if (!isMatch) {
+    otpEntry.attempts++;
+    memoryOtpMap.set(storeKey, otpEntry);
+    await saveToSystemSettings(storeKey, otpEntry);
+
     const remaining = MAX_VERIFY_ATTEMPTS - otpEntry.attempts;
     if (remaining <= 0) {
       memoryOtpMap.delete(storeKey);
@@ -476,4 +479,389 @@ export async function confirmPasswordResetWithToken(
       error: err instanceof Error ? err.message : 'Failed to update password.',
     };
   }
+}
+
+/**
+ * Stores a Login OTP directly in memory (for testing and controlled flows).
+ */
+export function storeLoginOTPForTesting(email: string, code: string, expiresAt?: number): void {
+  const normalizedEmail = email.toLowerCase().trim();
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = hashOTP(code, salt);
+  const now = Date.now();
+  const entry: StoredOTP = {
+    email: normalizedEmail,
+    userId: 'mock-test-user-id',
+    hash,
+    salt,
+    expiresAt: expiresAt ?? (now + OTP_EXPIRY_MS),
+    attempts: 0,
+    createdAt: now,
+  };
+  const storeKey = `login_otp:${normalizedEmail}`;
+  memoryLoginOtpMap.set(storeKey, entry);
+}
+
+/**
+ * Stores a Registration OTP directly in memory (for testing).
+ */
+export function storeRegistrationOTPForTesting(email: string, code: string, expiresAt?: number): void {
+  const normalizedEmail = email.toLowerCase().trim();
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = hashOTP(code, salt);
+  const now = Date.now();
+  const entry: StoredOTP = {
+    email: normalizedEmail,
+    userId: 'mock-test-user-id',
+    hash,
+    salt,
+    expiresAt: expiresAt ?? (now + OTP_EXPIRY_MS),
+    attempts: 0,
+    createdAt: now,
+  };
+  const storeKey = `reg_otp:${normalizedEmail}`;
+  memoryRegOtpMap.set(storeKey, entry);
+}
+
+/**
+ * Generates and sends a 6-digit Login OTP to the user's EMAIL ONLY.
+ * OTP must be verified in order to access any account.
+ */
+export async function requestLoginOTP(
+  email: string,
+  ip: string
+): Promise<{ success: boolean; message: string; rateLimited?: boolean; retryAfterSeconds?: number }> {
+  const normalizedEmail = email.toLowerCase().trim();
+
+  // 1. Rate limit by IP
+  const ipCheck = checkRequestRateLimit(`ip:login:${ip}`);
+  if (!ipCheck.allowed) {
+    return {
+      success: false,
+      message: `Too many login attempts from this device. Please try again in ${Math.ceil((ipCheck.retryAfterSeconds || 60) / 60)} minutes.`,
+      rateLimited: true,
+      retryAfterSeconds: ipCheck.retryAfterSeconds,
+    };
+  }
+
+  // 2. Rate limit by Email
+  const emailCheck = checkRequestRateLimit(`email:login:${normalizedEmail}`);
+  if (!emailCheck.allowed) {
+    return {
+      success: false,
+      message: `Too many login code requests for this email. Please try again in ${Math.ceil((emailCheck.retryAfterSeconds || 60) / 60)} minutes.`,
+      rateLimited: true,
+      retryAfterSeconds: emailCheck.retryAfterSeconds,
+    };
+  }
+
+  // 3. Generate 6-digit OTP and salt
+  const otpCode = generateNumericOTP();
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hashedCode = hashOTP(otpCode, salt);
+  const now = Date.now();
+
+  const otpEntry: StoredOTP = {
+    email: normalizedEmail,
+    hash: hashedCode,
+    salt,
+    expiresAt: now + OTP_EXPIRY_MS,
+    attempts: 0,
+    createdAt: now,
+  };
+
+  // 4. Store OTP in memory and system_settings
+  const storeKey = `login_otp:${normalizedEmail}`;
+  memoryLoginOtpMap.set(storeKey, otpEntry);
+  await saveToSystemSettings(storeKey, otpEntry);
+
+  // 5. Send login OTP to EMAIL ONLY
+  const emailHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Your Sign-In Verification Code</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0f172a; color: #f8fafc; padding: 40px 20px; margin: 0;">
+  <div style="max-width: 480px; margin: 0 auto; background-color: #1e293b; border-radius: 12px; border: 1px solid #334155; padding: 32px;">
+    <div style="font-size: 20px; font-weight: 700; color: #ffffff; margin-bottom: 24px; text-align: center;">
+      Qasi<span style="color: #10b981;">Net</span> Sign-In Verification
+    </div>
+    <p style="font-size: 15px; color: #cbd5e1; margin-bottom: 20px; line-height: 1.5;">
+      A sign-in attempt was initiated for your QasiNet account. To complete sign-in, enter the 6-digit verification code below:
+    </p>
+    <div style="background-color: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 18px; text-align: center; margin: 24px 0;">
+      <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 8px;">
+        Sign-In Code
+      </div>
+      <div style="font-family: 'Courier New', Courier, monospace; font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #34d399;">
+        ${otpCode}
+      </div>
+    </div>
+    <p style="font-size: 13px; color: #94a3b8; margin-bottom: 8px;">
+      • This code is valid for <strong>10 minutes</strong>.
+    </p>
+    <p style="font-size: 13px; color: #94a3b8; margin-bottom: 24px;">
+      • OTP codes are delivered <strong>strictly to your email</strong>. Never share this code with anyone.
+    </p>
+    <div style="border-top: 1px solid #334155; padding-top: 16px; font-size: 12px; color: #64748b; text-align: center;">
+      QasiNet Security Service • automated message, please do not reply.
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  const sendRes = await sendEmail({
+    to: normalizedEmail,
+    subject: `Your QasiNet Login Verification Code: ${otpCode}`,
+    html: emailHtml,
+    text: `Your QasiNet sign-in verification code is: ${otpCode}\n\nThis code will expire in 10 minutes.\n\nOTPs are sent strictly to your email. If you did not initiate this request, please secure your account.`,
+  });
+
+  if (!sendRes.success) {
+    console.warn(`[Login OTP Send Warning] Email send to ${maskEmail(normalizedEmail)} returned error: ${sendRes.error}`);
+  }
+
+  return { success: true, message: `Verification code sent to ${maskEmail(normalizedEmail)}.` };
+}
+
+/**
+ * Verifies the 6-digit Login OTP.
+ */
+export async function verifyLoginOTP(
+  email: string,
+  code: string
+): Promise<{ success: boolean; error?: string }> {
+  const normalizedEmail = email.toLowerCase().trim();
+  const cleanCode = (code || '').replace(/\D/g, '').trim();
+  const storeKey = `login_otp:${normalizedEmail}`;
+
+  let otpEntry = memoryLoginOtpMap.get(storeKey);
+  if (!otpEntry) {
+    otpEntry = (await loadFromSystemSettings<StoredOTP>(storeKey)) || undefined;
+  }
+
+  if (!otpEntry) {
+    return { success: false, error: 'Invalid or expired verification code.' };
+  }
+
+  const now = Date.now();
+
+  if (otpEntry.expiresAt <= now) {
+    memoryLoginOtpMap.delete(storeKey);
+    await deleteFromSystemSettings(storeKey);
+    return { success: false, error: 'Verification code has expired. Please request a new one.' };
+  }
+
+  if (otpEntry.attempts >= MAX_VERIFY_ATTEMPTS) {
+    memoryLoginOtpMap.delete(storeKey);
+    await deleteFromSystemSettings(storeKey);
+    return {
+      success: false,
+      error: 'Too many incorrect attempts. This code has been invalidated. Please request a new code.',
+    };
+  }
+
+  const candidateHash = hashOTP(cleanCode, otpEntry.salt);
+  const isMatch =
+    candidateHash.length === otpEntry.hash.length &&
+    crypto.timingSafeEqual(Buffer.from(candidateHash), Buffer.from(otpEntry.hash));
+
+  if (!isMatch) {
+    otpEntry.attempts++;
+    memoryLoginOtpMap.set(storeKey, otpEntry);
+    await saveToSystemSettings(storeKey, otpEntry);
+
+    const remaining = MAX_VERIFY_ATTEMPTS - otpEntry.attempts;
+    if (remaining <= 0) {
+      memoryLoginOtpMap.delete(storeKey);
+      await deleteFromSystemSettings(storeKey);
+      return {
+        success: false,
+        error: 'Too many incorrect attempts. This code has been invalidated. Please request a new code.',
+      };
+    }
+    return {
+      success: false,
+      error: `Incorrect verification code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`,
+    };
+  }
+
+  // Delete upon successful verification (single-use)
+  memoryLoginOtpMap.delete(storeKey);
+  await deleteFromSystemSettings(storeKey);
+
+  console.log(`[Login OTP Verified] Successful verification for ${maskEmail(normalizedEmail)}.`);
+  return { success: true };
+}
+
+/**
+ * Generates and sends a 6-digit Registration OTP to the user's EMAIL ONLY.
+ */
+export async function requestRegistrationOTP(
+  email: string,
+  ip: string
+): Promise<{ success: boolean; message: string; rateLimited?: boolean; retryAfterSeconds?: number }> {
+  const normalizedEmail = email.toLowerCase().trim();
+
+  // Rate limit
+  const ipCheck = checkRequestRateLimit(`ip:reg:${ip}`);
+  if (!ipCheck.allowed) {
+    return {
+      success: false,
+      message: `Too many registration attempts from this device. Please try again later.`,
+      rateLimited: true,
+      retryAfterSeconds: ipCheck.retryAfterSeconds,
+    };
+  }
+
+  const emailCheck = checkRequestRateLimit(`email:reg:${normalizedEmail}`);
+  if (!emailCheck.allowed) {
+    return {
+      success: false,
+      message: `Too many requests for this email. Please try again later.`,
+      rateLimited: true,
+      retryAfterSeconds: emailCheck.retryAfterSeconds,
+    };
+  }
+
+  const otpCode = generateNumericOTP();
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hashedCode = hashOTP(otpCode, salt);
+  const now = Date.now();
+
+  const otpEntry: StoredOTP = {
+    email: normalizedEmail,
+    hash: hashedCode,
+    salt,
+    expiresAt: now + OTP_EXPIRY_MS,
+    attempts: 0,
+    createdAt: now,
+  };
+
+  const storeKey = `reg_otp:${normalizedEmail}`;
+  memoryRegOtpMap.set(storeKey, otpEntry);
+  await saveToSystemSettings(storeKey, otpEntry);
+
+  const emailHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Verify Your QasiNet Account</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0f172a; color: #f8fafc; padding: 40px 20px; margin: 0;">
+  <div style="max-width: 480px; margin: 0 auto; background-color: #1e293b; border-radius: 12px; border: 1px solid #334155; padding: 32px;">
+    <div style="font-size: 20px; font-weight: 700; color: #ffffff; margin-bottom: 24px; text-align: center;">
+      Welcome to Qasi<span style="color: #10b981;">Net</span>
+    </div>
+    <p style="font-size: 15px; color: #cbd5e1; margin-bottom: 20px; line-height: 1.5;">
+      Thank you for creating an account with QasiNet. To complete your registration, enter the verification code below:
+    </p>
+    <div style="background-color: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 18px; text-align: center; margin: 24px 0;">
+      <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 8px;">
+        Account Verification Code
+      </div>
+      <div style="font-family: 'Courier New', Courier, monospace; font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #34d399;">
+        ${otpCode}
+      </div>
+    </div>
+    <p style="font-size: 13px; color: #94a3b8; margin-bottom: 8px;">
+      • Valid for <strong>10 minutes</strong>.
+    </p>
+    <p style="font-size: 13px; color: #94a3b8; margin-bottom: 24px;">
+      • Verification codes are dispatched <strong>strictly to your email</strong>.
+    </p>
+    <div style="border-top: 1px solid #334155; padding-top: 16px; font-size: 12px; color: #64748b; text-align: center;">
+      QasiNet Security Service • automated message, please do not reply.
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  const sendRes = await sendEmail({
+    to: normalizedEmail,
+    subject: `Your QasiNet Account Verification Code: ${otpCode}`,
+    html: emailHtml,
+    text: `Your QasiNet account verification code is: ${otpCode}\n\nThis code will expire in 10 minutes.`,
+  });
+
+  if (!sendRes.success) {
+    console.warn(`[Reg OTP Send Warning] Email send to ${maskEmail(normalizedEmail)} returned error: ${sendRes.error}`);
+  }
+
+  return { success: true, message: `Verification code sent to ${maskEmail(normalizedEmail)}.` };
+}
+
+/**
+ * Verifies the 6-digit Registration OTP.
+ */
+export async function verifyRegistrationOTP(
+  email: string,
+  code: string
+): Promise<{ success: boolean; error?: string }> {
+  const normalizedEmail = email.toLowerCase().trim();
+  const cleanCode = (code || '').replace(/\D/g, '').trim();
+  const storeKey = `reg_otp:${normalizedEmail}`;
+
+  let otpEntry = memoryRegOtpMap.get(storeKey);
+  if (!otpEntry) {
+    otpEntry = (await loadFromSystemSettings<StoredOTP>(storeKey)) || undefined;
+  }
+
+  if (!otpEntry) {
+    return { success: false, error: 'Invalid or expired verification code.' };
+  }
+
+  const now = Date.now();
+
+  if (otpEntry.expiresAt <= now) {
+    memoryRegOtpMap.delete(storeKey);
+    await deleteFromSystemSettings(storeKey);
+    return { success: false, error: 'Verification code has expired. Please request a new one.' };
+  }
+
+  if (otpEntry.attempts >= MAX_VERIFY_ATTEMPTS) {
+    memoryRegOtpMap.delete(storeKey);
+    await deleteFromSystemSettings(storeKey);
+    return {
+      success: false,
+      error: 'Too many incorrect attempts. This code has been invalidated. Please request a new code.',
+    };
+  }
+
+  const candidateHash = hashOTP(cleanCode, otpEntry.salt);
+  const isMatch =
+    candidateHash.length === otpEntry.hash.length &&
+    crypto.timingSafeEqual(Buffer.from(candidateHash), Buffer.from(otpEntry.hash));
+
+  if (!isMatch) {
+    otpEntry.attempts++;
+    memoryRegOtpMap.set(storeKey, otpEntry);
+    await saveToSystemSettings(storeKey, otpEntry);
+
+    const remaining = MAX_VERIFY_ATTEMPTS - otpEntry.attempts;
+    if (remaining <= 0) {
+      memoryRegOtpMap.delete(storeKey);
+      await deleteFromSystemSettings(storeKey);
+      return {
+        success: false,
+        error: 'Too many incorrect attempts. This code has been invalidated. Please request a new code.',
+      };
+    }
+    return {
+      success: false,
+      error: `Incorrect verification code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`,
+    };
+  }
+
+  // Delete upon successful verification (single-use)
+  memoryRegOtpMap.delete(storeKey);
+  await deleteFromSystemSettings(storeKey);
+
+  console.log(`[Reg OTP Verified] Successful verification for ${maskEmail(normalizedEmail)}.`);
+  return { success: true };
 }

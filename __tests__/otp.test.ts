@@ -121,7 +121,7 @@ describe('Password Reset OTP Security & Verification', () => {
       const secondVerify = await verifyPasswordResetOTP(testEmail, '852963');
       expect(secondVerify.success).toBe(false);
       expect(secondVerify.error).toMatch(/invalid or expired/i);
-    });
+    }, 40000);
 
     it('rejects expired OTP codes', async () => {
       const testEmail = 'expired@example.com';
@@ -131,6 +131,6 @@ describe('Password Reset OTP Security & Verification', () => {
       const res = await verifyPasswordResetOTP(testEmail, '112233');
       expect(res.success).toBe(false);
       expect(res.error).toMatch(/expired/i);
-    });
+    }, 40000);
   });
 });

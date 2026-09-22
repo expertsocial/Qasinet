@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { floatService } from '@/lib/services/float';
+import { isAuthorizedAdminEmail } from '@/lib/auth/admin-check';
 
 export async function GET(req: NextRequest) {
   try {
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
     const isAdmin = 
       user.app_metadata?.role === 'ADMIN' ||
       user.app_metadata?.is_admin === true ||
-      user.email === 'qasinetltd@gmail.com';
+      isAuthorizedAdminEmail(user.email);
 
     if (!isAdmin) {
       const { data: adminCheck } = await supabaseService.from('admins').select('id').eq('id', user.id).single();

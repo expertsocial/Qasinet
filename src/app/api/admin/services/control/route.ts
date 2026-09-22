@@ -9,6 +9,7 @@ import {
 } from '@/lib/services/service-lock';
 import { MASTER_SERVICES, getServiceStatus } from '@/lib/services/registry';
 import { sendAdminServiceLockAlertEmail } from '@/lib/services/email';
+import { isAuthorizedAdminEmail } from '@/lib/auth/admin-check';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +28,7 @@ async function verifyAdminAuth() {
   const isAdmin = 
     user.app_metadata?.role === 'ADMIN' ||
     user.app_metadata?.is_admin === true ||
-    user.email === 'qasinetltd@gmail.com';
+    isAuthorizedAdminEmail(user.email);
 
   if (!isAdmin) {
     const { data: adminCheck } = await supabaseService.from('admins').select('id').eq('id', user.id).single();

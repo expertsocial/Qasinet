@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { TransactionOrchestrator } from '@/lib/services/orchestrator';
 import { KyandaProvider } from '@/lib/providers/kyanda/provider';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { isAuthorizedAdminEmail } from '@/lib/auth/admin-check';
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const isAdmin = 
       user.app_metadata?.role === 'ADMIN' ||
       user.app_metadata?.is_admin === true ||
-      user.email === 'qasinetltd@gmail.com';
+      isAuthorizedAdminEmail(user.email);
 
     if (!isAdmin) {
       const { data: adminCheck } = await supabaseService.from('admins').select('id').eq('id', user.id).single();

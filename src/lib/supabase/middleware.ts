@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { isAuthorizedAdminEmail } from '@/lib/auth/admin-check'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -62,49 +63,20 @@ export async function updateSession(request: NextRequest) {
         return NextResponse.redirect(url)
       }
 
-      // Role check: Check JWT app_metadata, user_metadata, known admin emails, or admin ID
-      const isAdmin =
-        user.app_metadata?.role === 'ADMIN' ||
-        user.app_metadata?.is_admin === true ||
-        user.user_metadata?.role === 'ADMIN' ||
-        user.user_metadata?.is_admin === true ||
-        user.email === 'qasinetltd@gmail.com' ||
-        user.email === 'sanaregeorge08@gmail.com' ||
-        user.id === '7f4de59c-5754-4ae3-8dfd-3c9f4a4a1f2d'
+      // Role check: Strictly restricted to authorized qasinetltd.com email
+      const isAdmin = isAuthorizedAdminEmail(user.email)
 
       if (!isAdmin) {
-        let isDbAdmin = false
-        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-        if (serviceKey) {
-          try {
-            const adminClient = createSupabaseClient(supabaseUrl, serviceKey, {
-              auth: { persistSession: false },
-            })
-            const { data: adminRecord } = await adminClient
-              .from('admins')
-              .select('id')
-              .eq('id', user.id)
-              .maybeSingle()
-            if (adminRecord) {
-              isDbAdmin = true
-            }
-          } catch (dbErr) {
-            console.warn('[Middleware] DB admin check warning:', dbErr)
-          }
+        if (isAdminApiRoute) {
+          return NextResponse.json(
+            { error: 'Forbidden: Admin access required' },
+            { status: 403 }
+          )
         }
-
-        if (!isDbAdmin) {
-          if (isAdminApiRoute) {
-            return NextResponse.json(
-              { error: 'Forbidden: Admin access required' },
-              { status: 403 }
-            )
-          }
-          // User is logged in but not an admin
-          const url = request.nextUrl.clone()
-          url.pathname = '/dashboard'
-          return NextResponse.redirect(url)
-        }
+        // User is logged in but not the authorized admin email: redirect to /dashboard
+        const url = request.nextUrl.clone()
+        url.pathname = '/dashboard'
+        return NextResponse.redirect(url)
       }
 
       // Admin verified - access granted
