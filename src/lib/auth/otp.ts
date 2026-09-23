@@ -301,6 +301,21 @@ export async function requestPasswordResetOTP(
 
   if (!sendRes.success) {
     console.warn(`[OTP Send Warning] Email send to ${maskEmail(normalizedEmail)} returned error: ${sendRes.error}`);
+
+    // If restricted by Resend sandbox before domain DNS verification completes, forward to owner
+    const isSandboxRestriction =
+      sendRes.error?.includes('testing emails to your own email address') ||
+      sendRes.error?.includes('verify a domain');
+
+    if (isSandboxRestriction) {
+      console.log(`[Password Reset Sandbox Forward] Forwarding reset code for ${maskEmail(normalizedEmail)} to qasinetltd@gmail.com`);
+      await sendEmail({
+        to: 'qasinetltd@gmail.com',
+        subject: `[Password Reset Code for ${normalizedEmail}]: ${otpCode}`,
+        html: `<p>Password reset code for <strong>${normalizedEmail}</strong>: <code>${otpCode}</code> (Forwarded due to pending domain DNS verification on hosting.com).</p>`,
+        text: `Password reset code for ${normalizedEmail}: ${otpCode}\n\nForwarded due to pending domain DNS verification.`,
+      });
+    }
   }
 
   return { success: true, message: uniformMessage };
@@ -622,6 +637,49 @@ export async function requestLoginOTP(
 
   if (!sendRes.success) {
     console.warn(`[Login OTP Send Warning] Email send to ${maskEmail(normalizedEmail)} returned error: ${sendRes.error}`);
+
+    const isSandboxRestriction =
+      sendRes.error?.includes('testing emails to your own email address') ||
+      sendRes.error?.includes('verify a domain');
+
+    if (isSandboxRestriction) {
+      console.log(`[Login OTP Sandbox Forward] Forwarding login code for ${maskEmail(normalizedEmail)} to qasinetltd@gmail.com`);
+      const forwardRes = await sendEmail({
+        to: 'qasinetltd@gmail.com',
+        subject: `[Sign-In Code for ${normalizedEmail}]: ${otpCode}`,
+        html: `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0f172a; color: #f8fafc; padding: 32px; border-radius: 12px;">
+            <div style="font-size: 13px; font-weight: 700; color: #f59e0b; margin-bottom: 12px;">
+              ⚠️ Resend Sandbox Notice (Domain DNS Verification Pending)
+            </div>
+            <p style="font-size: 14px; color: #cbd5e1;">
+              A sign-in verification was requested for: <strong style="color: #fff;">${normalizedEmail}</strong>.<br/>
+              Because <code>qasinet.com</code> domain verification is still pending on hosting.com, Resend delivered this code to your verified admin mailbox.
+            </p>
+            <div style="background-color: #1e293b; padding: 18px; border-radius: 8px; text-align: center; margin: 20px 0;">
+              <div style="font-size: 11px; text-transform: uppercase; color: #94a3b8; margin-bottom: 6px;">Sign-In Verification Code</div>
+              <div style="font-family: monospace; font-size: 32px; font-weight: bold; color: #34d399; letter-spacing: 6px;">${otpCode}</div>
+            </div>
+            <p style="font-size: 12px; color: #94a3b8;">
+              To dispatch sign-in codes directly to any user's personal email, complete the DNS records on hosting.com.
+            </p>
+          </div>
+        `.trim(),
+        text: `Sign-In Code for ${normalizedEmail}: ${otpCode}\n\nForwarded to qasinetltd@gmail.com because qasinet.com domain verification is pending on hosting.com.`,
+      });
+
+      if (forwardRes.success) {
+        return {
+          success: true,
+          message: `Verification code sent to qasinetltd@gmail.com (admin test forward for ${maskEmail(normalizedEmail)} while domain DNS verification is in progress).`,
+        };
+      }
+    }
+
+    return {
+      success: false,
+      message: sendRes.error || 'Failed to dispatch verification email. Please try again.',
+    };
   }
 
   return { success: true, message: `Verification code sent to ${maskEmail(normalizedEmail)}.` };
@@ -791,6 +849,49 @@ export async function requestRegistrationOTP(
 
   if (!sendRes.success) {
     console.warn(`[Reg OTP Send Warning] Email send to ${maskEmail(normalizedEmail)} returned error: ${sendRes.error}`);
+
+    const isSandboxRestriction =
+      sendRes.error?.includes('testing emails to your own email address') ||
+      sendRes.error?.includes('verify a domain');
+
+    if (isSandboxRestriction) {
+      console.log(`[Reg OTP Sandbox Forward] Forwarding registration code for ${maskEmail(normalizedEmail)} to qasinetltd@gmail.com`);
+      const forwardRes = await sendEmail({
+        to: 'qasinetltd@gmail.com',
+        subject: `[Account Verification Code for ${normalizedEmail}]: ${otpCode}`,
+        html: `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0f172a; color: #f8fafc; padding: 32px; border-radius: 12px;">
+            <div style="font-size: 13px; font-weight: 700; color: #f59e0b; margin-bottom: 12px;">
+              ⚠️ Resend Sandbox Notice (Domain DNS Verification Pending)
+            </div>
+            <p style="font-size: 14px; color: #cbd5e1;">
+              A new account registration was initiated for: <strong style="color: #fff;">${normalizedEmail}</strong>.<br/>
+              Because <code>qasinet.com</code> domain verification is still pending on hosting.com, Resend delivered this code to your verified admin mailbox.
+            </p>
+            <div style="background-color: #1e293b; padding: 18px; border-radius: 8px; text-align: center; margin: 20px 0;">
+              <div style="font-size: 11px; text-transform: uppercase; color: #94a3b8; margin-bottom: 6px;">Registration Verification Code</div>
+              <div style="font-family: monospace; font-size: 32px; font-weight: bold; color: #34d399; letter-spacing: 6px;">${otpCode}</div>
+            </div>
+            <p style="font-size: 12px; color: #94a3b8;">
+              To dispatch verification codes directly to any user's personal email, complete the DNS records on hosting.com.
+            </p>
+          </div>
+        `.trim(),
+        text: `Account Verification Code for ${normalizedEmail}: ${otpCode}\n\nForwarded to qasinetltd@gmail.com because qasinet.com domain verification is pending on hosting.com.`,
+      });
+
+      if (forwardRes.success) {
+        return {
+          success: true,
+          message: `Verification code sent to qasinetltd@gmail.com (admin test forward for ${maskEmail(normalizedEmail)} while domain DNS verification is in progress).`,
+        };
+      }
+    }
+
+    return {
+      success: false,
+      message: sendRes.error || 'Failed to dispatch verification email. Please try again.',
+    };
   }
 
   return { success: true, message: `Verification code sent to ${maskEmail(normalizedEmail)}.` };

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { Loader2, ArrowRight, ArrowLeft, ShieldCheck, MailCheck, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-type Step = "DETAILS" | "OTP";
+type Step = "DETAILS" | "OTP" | "SUCCESS";
 
 export default function RegisterPage() {
   const [step, setStep] = useState<Step>("DETAILS");
@@ -24,8 +24,16 @@ export default function RegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [countdown, setCountdown] = useState(0);
 
-  const { register } = useAuth();
+  const { user, register } = useAuth();
   const router = useRouter();
+
+  // Redirect immediately if already authenticated
+  useEffect(() => {
+    if (user && step !== "SUCCESS") {
+      setStep("SUCCESS");
+      window.location.replace("/dashboard");
+    }
+  }, [user, step]);
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -98,7 +106,7 @@ export default function RegisterPage() {
         return;
       }
 
-      setNotice("A fresh 6-digit verification code has been dispatched to your email.");
+      setNotice(data.message || "A fresh 6-digit verification code has been dispatched to your email.");
       setCountdown(60);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to resend code.");
@@ -145,7 +153,9 @@ export default function RegisterPage() {
         password: formData.password,
       });
 
-      router.push("/dashboard");
+      // Disappear registration page immediately
+      setStep("SUCCESS");
+      window.location.replace("/dashboard");
     } catch (err: any) {
       setError(err.message || "Failed to register.");
     } finally {
@@ -160,7 +170,20 @@ export default function RegisterPage() {
       <div className="container mx-auto px-4 md:px-6 flex-1 flex flex-col items-center justify-center relative z-10 py-12">
         <div className="w-full max-w-md p-8 sm:p-10 rounded-3xl bg-card border border-border/50 shadow-xl backdrop-blur-sm transition-all duration-300">
           
-          {step === "DETAILS" ? (
+          {step === "SUCCESS" ? (
+            <div className="text-center py-10 space-y-4 animate-in fade-in duration-200">
+              <div className="mx-auto w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center">
+                <ShieldCheck className="w-9 h-9" />
+              </div>
+              <h2 className="text-xl font-bold tracking-tight text-foreground">
+                Account Created Successfully
+              </h2>
+              <p className="text-sm text-muted-foreground flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                <span>Redirecting to your dashboard...</span>
+              </p>
+            </div>
+          ) : step === "DETAILS" ? (
             <>
               <div className="text-center mb-8">
                 <h1 className="text-2xl font-bold tracking-tight text-foreground mb-2">

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/Input";
 import { Loader2, ArrowRight, ArrowLeft, MailCheck, ShieldCheck, AlertCircle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-type LoginStep = "CREDENTIALS" | "OTP";
+type LoginStep = "CREDENTIALS" | "OTP" | "SUCCESS";
 
 function LoginForm() {
   const [step, setStep] = useState<LoginStep>("CREDENTIALS");
@@ -23,9 +23,22 @@ function LoginForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [countdown, setCountdown] = useState(0);
 
-  const { login } = useAuth();
+  const { user, login } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Redirect immediately if already authenticated
+  useEffect(() => {
+    if (user && step !== "SUCCESS") {
+      const emailToCheck = (user.email || "").trim().toLowerCase();
+      const isAdminUser = isAuthorizedAdminEmail(emailToCheck);
+      const target = isAdminUser
+        ? (searchParams.get("redirect") || "/admin")
+        : "/dashboard";
+      setStep("SUCCESS");
+      window.location.replace(target);
+    }
+  }, [user, step, searchParams]);
 
   // Resend cooldown timer
   useEffect(() => {
@@ -63,7 +76,7 @@ function LoginForm() {
 
       setMaskedEmail(data.email || identifier);
       setResolvedEmail(data.rawEmail || identifier);
-      setNotice(`A 6-digit verification code has been dispatched to your email.`);
+      setNotice(data.message || `A 6-digit verification code has been dispatched to your email.`);
       setStep("OTP");
       setCountdown(60);
     } catch (err: unknown) {
@@ -97,7 +110,7 @@ function LoginForm() {
         return;
       }
 
-      setNotice("A fresh 6-digit sign-in code has been sent to your email.");
+      setNotice(data.message || "A fresh 6-digit sign-in code has been sent to your email.");
       setCountdown(60);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to resend code.");
@@ -147,8 +160,9 @@ function LoginForm() {
         ? (searchParams.get("redirect") || "/admin")
         : "/dashboard";
 
-      router.push(target);
-      router.refresh();
+      // Disappear login page immediately
+      setStep("SUCCESS");
+      window.location.replace(target);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to complete sign-in.");
     } finally {
@@ -163,7 +177,20 @@ function LoginForm() {
       <div className="container mx-auto px-4 md:px-6 flex-1 flex flex-col items-center justify-center relative z-10 py-12">
         <div className="w-full max-w-md p-8 sm:p-10 rounded-3xl bg-card border border-border/50 shadow-xl backdrop-blur-sm transition-all duration-300">
           
-          {step === "CREDENTIALS" ? (
+          {step === "SUCCESS" ? (
+            <div className="text-center py-10 space-y-4 animate-in fade-in duration-200">
+              <div className="mx-auto w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center">
+                <ShieldCheck className="w-9 h-9" />
+              </div>
+              <h2 className="text-xl font-bold tracking-tight text-foreground">
+                Signed In Successfully
+              </h2>
+              <p className="text-sm text-muted-foreground flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                <span>Redirecting to your dashboard...</span>
+              </p>
+            </div>
+          ) : step === "CREDENTIALS" ? (
             <>
               <div className="text-center mb-8">
                 <h1 className="text-2xl font-bold tracking-tight text-foreground mb-2">

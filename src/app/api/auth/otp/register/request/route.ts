@@ -24,6 +24,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.message || 'Failed to dispatch verification code.' },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
       email: maskEmail(email),

@@ -80,6 +80,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!otpResult.success) {
+      return NextResponse.json(
+        { error: otpResult.message || 'Failed to dispatch sign-in code.' },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
       email: maskEmail(resolvedEmail),
