@@ -153,31 +153,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     const email = data.email.trim().toLowerCase();
 
-    const { data: authData, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password: data.password,
-      options: {
-        data: {
-          full_name: data.fullName,
-          phone: data.phone,
-        },
-      },
+    // Call server-side registration API (creates account with auto-confirm, zero OTP)
+    const res = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fullName: data.fullName,
+        phone: data.phone,
+        email,
+        password: data.password,
+      }),
     });
 
-    if (signUpError) {
-      throw new Error(signUpError.message || "Failed to create account.");
+    const resData = await res.json();
+    if (!res.ok) {
+      throw new Error(resData.error || "Failed to create account. Please try again.");
     }
 
-    if (authData.user) {
-      // Upsert profile
-      await supabase.from("profiles").upsert({
-        id: authData.user.id,
-        full_name: data.fullName,
-        phone: data.phone,
-        email: data.email || null,
-      });
+    // Immediately sign in with password to establish session in browser
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password: data.password,
+    });
 
-      await fetchProfileAndAdminStatus(authData.user);
+    if (signInError) {
+      throw new Error(signInError.message || "Account created, but sign in failed. Please log in.");
+    }
+
+    if (signInData.user) {
+      await fetchProfileAndAdminStatus(signInData.user);
     }
   };
 

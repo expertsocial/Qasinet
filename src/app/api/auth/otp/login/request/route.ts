@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { requestLoginOTP } from '@/lib/auth/otp';
 import { maskEmail } from '@/lib/email/client';
+import { isAuthorizedAdminEmail } from '@/lib/auth/admin-check';
 
 export async function POST(req: NextRequest) {
   try {
@@ -69,7 +70,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Dispatch 6-digit Login OTP strictly to EMAIL ONLY
+    // Check if the authenticated account is an authorized administrator
+    const isAdmin = isAuthorizedAdminEmail(resolvedEmail);
+
+    // Regular customers do NOT use OTP - immediate dashboard access
+    if (!isAdmin) {
+      return NextResponse.json({
+        success: true,
+        isAdmin: false,
+        requireOtp: false,
+        rawEmail: resolvedEmail,
+      });
+    }
+
+    // Administrators MUST verify with 6-digit OTP sent to their official email
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown-ip';
     const otpResult = await requestLoginOTP(resolvedEmail, ip);
 
@@ -82,16 +96,18 @@ export async function POST(req: NextRequest) {
 
     if (!otpResult.success) {
       return NextResponse.json(
-        { error: otpResult.message || 'Failed to dispatch sign-in code.' },
+        { error: otpResult.message || 'Failed to dispatch admin verification code.' },
         { status: 400 }
       );
     }
 
     return NextResponse.json({
       success: true,
+      isAdmin: true,
+      requireOtp: true,
       email: maskEmail(resolvedEmail),
       rawEmail: resolvedEmail,
-      message: otpResult.message,
+      message: 'Admin security verification required. A 6-digit verification code has been dispatched to your email.',
     });
   } catch (error: unknown) {
     console.error('[Login OTP Request Error]:', error);

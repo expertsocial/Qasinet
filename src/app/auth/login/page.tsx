@@ -83,9 +83,21 @@ function LoginForm() {
         return;
       }
 
+      // Regular customers do NOT use OTP - immediate dashboard access
+      if (!data.requireOtp) {
+        await login(data.rawEmail || identifier.trim(), password);
+        setStep("SUCCESS");
+        router.replace("/dashboard");
+        setTimeout(() => {
+          window.location.replace("/dashboard");
+        }, 500);
+        return;
+      }
+
+      // Administrator account - transition to OTP verification
       setMaskedEmail(data.email || identifier);
       setResolvedEmail(data.rawEmail || identifier);
-      setNotice(data.message || `A 6-digit verification code has been dispatched to your email.`);
+      setNotice(data.message || `An admin verification code has been dispatched to your email.`);
       setStep("OTP");
       setCountdown(60);
     } catch (err: unknown) {
@@ -281,10 +293,10 @@ function LoginForm() {
                   <MailCheck className="w-6 h-6" />
                 </div>
                 <h1 className="text-2xl font-bold tracking-tight text-foreground mb-2">
-                  Two-Factor Verification
+                  Admin Verification
                 </h1>
                 <p className="text-sm text-muted-foreground">
-                  Enter the 6-digit code sent to{" "}
+                  Enter the 6-digit administrator verification code sent to{" "}
                   <span className="font-semibold text-foreground font-mono">{maskedEmail}</span>.
                 </p>
               </div>
