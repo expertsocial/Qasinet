@@ -49,6 +49,9 @@ function getSanitizedCallbackUrl(): string | undefined {
   } else if (url.startsWith('http:http://')) {
     url = url.replace('http:http://', 'http://');
   }
+  if (url.includes('qasinet.com') && !url.includes('www.qasinet.com')) {
+    url = url.replace('://qasinet.com', '://www.qasinet.com');
+  }
   return url;
 }
 

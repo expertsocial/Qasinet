@@ -44,7 +44,13 @@ export class MpesaDarajaProvider {
       baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
     }
     // Ensure we don't end up with double slashes
-    const sanitizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    let sanitizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    // CRITICAL: Vercel canonical domain is www.qasinet.com.
+    // Safaricom Daraja does not follow 301/308 HTTP redirects.
+    // Rewrite apex qasinet.com to www.qasinet.com so webhooks hit the handler directly.
+    if (sanitizedBase.includes('qasinet.com') && !sanitizedBase.includes('www.qasinet.com')) {
+      sanitizedBase = sanitizedBase.replace('://qasinet.com', '://www.qasinet.com');
+    }
     return `${sanitizedBase}/api/webhooks/mpesa`;
   }
 

@@ -1,57 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { TransactionOrchestrator } from '@/lib/services/orchestrator';
-import { KyandaProvider } from '@/lib/providers/kyanda/provider';
-import { BingwaProvider } from '@/lib/providers/bingwa/provider';
-import { PayBillServiceHandler, PayBillResult } from '@/lib/services/paybill';
+import { executeVendingForTransaction } from '@/lib/services/vending';
 
 interface CallbackMetadataItem {
   Name: string;
   Value?: string;
-}
-
-interface ServiceJoin {
-  slug: string;
-  type: string;
-}
-
-interface ProductJoin {
-  name: string;
-  provider_product_id?: string;
-}
-
-type VendingResult =
-  | PayBillResult
-  | {
-      merchant_reference: string;
-      token?: string;
-      Token?: string;
-      units?: string;
-      Units?: string;
-      details?: {
-        token?: string;
-        Token?: string;
-        units?: string;
-        Units?: string;
-      };
-      [key: string]: unknown;
-    };
-
-// Map service slugs to Kyanda Telco IDs for non-electricity services
-function getKyandaTelco(slug: string): string {
-  const s = (slug || '').toLowerCase();
-  if (s.includes('dstv')) return 'DSTV';
-  if (s.includes('gotv')) return 'GOTV';
-  if (s.includes('zuku')) return 'ZUKU';
-  if (s.includes('startimes')) return 'STARTIMES';
-  if (s.includes('water') || s.includes('nairobi-water') || s.includes('nairobiwater') || s.includes('nairobi_wtr')) return 'NAIROBI_WTR';
-  if (s.includes('safaricom')) return 'SAFARICOM';
-  if (s.includes('airtel')) return 'AIRTEL';
-  if (s.includes('telkom')) return 'TELKOM';
-  if (s.includes('equitel')) return 'EQUITEL';
-  if (s.includes('faiba-bundle') || s.includes('faiba_b') || s.includes('faiba-data')) return 'FAIBA_B';
-  if (s.includes('faiba')) return 'FAIBA';
-  return 'SAFARICOM'; // Default fallback
 }
 
 export async function POST(req: NextRequest) {
@@ -76,7 +30,7 @@ export async function POST(req: NextRequest) {
     // 1. Find the transaction by CheckoutRequestID (stored in payment_reference)
     const { data: tx, error: fetchError } = await supabaseService
       .from('transactions')
-      .select('id, qsn_reference, status, amount, destination, service_id, product_id, services(slug, type), products(name, provider_product_id)')
+      .select('id, qsn_reference, status, amount, destination, service_id, product_id')
       .eq('payment_reference', CheckoutRequestID)
       .single();
 
@@ -125,166 +79,14 @@ export async function POST(req: NextRequest) {
     // 4. Authorize Vending
     await orchestrator.authorizeVending(tx.id);
 
-    // 5. VENDING DISPATCH
-    // We execute Kyanda vending and finalize transaction before acknowledging M-Pesa
+    // 5. Execute Vending (<5s immediate fulfillment)
     try {
-      console.log(`[M-PESA Webhook] Starting Kyanda vending for ${tx.id}`);
-      const kyandaProvider = new KyandaProvider();
-      const services = tx.services as ServiceJoin | ServiceJoin[] | null;
-      const products = tx.products as ProductJoin | ProductJoin[] | null;
-      const serviceSlug = (services && !Array.isArray(services) ? services.slug : '') || (Array.isArray(services) && services[0]?.slug) || '';
-      const serviceType = (services && !Array.isArray(services) ? services.type : '') || (Array.isArray(services) && services[0]?.type) || '';
-      
-      const initiatorPhone = process.env.KYANDA_INITIATOR_PHONE || '0722647928';
-      const isElectricity = serviceSlug.includes('kplc') || serviceSlug.includes('electricity') || serviceType === 'electricity';
-      const isTv = serviceSlug.includes('tv') || serviceSlug.includes('dstv') || serviceSlug.includes('gotv') || serviceSlug.includes('zuku') || serviceSlug.includes('startimes') || serviceType === 'tv';
-      const isWater = serviceSlug.includes('water') || serviceType === 'water';
-
-      let vendingResult: VendingResult;
-
-      if (isElectricity) {
-        console.log(`[M-PESA Webhook] Dispatching electricity vending for tx ${tx.id}`);
-        const paybillHandler = new PayBillServiceHandler(kyandaProvider);
-        const meterType = serviceSlug.includes('postpaid') ? 'postpaid' : 'prepaid';
-        vendingResult = await paybillHandler.vendElectricity({
-          amount: tx.amount,
-          meterNumber: tx.destination,
-          type: meterType,
-          initiatorPhone
-        });
-      } else if (isTv) {
-        const tvProvider = getKyandaTelco(serviceSlug);
-        console.log(`[M-PESA Webhook] Dispatching TV subscription vending for tx ${tx.id}, Provider: ${tvProvider}`);
-        const paybillHandler = new PayBillServiceHandler(kyandaProvider);
-        vendingResult = await paybillHandler.vendTvSubscription({
-          amount: tx.amount,
-          decoderNumber: tx.destination,
-          provider: tvProvider,
-          initiatorPhone
-        });
-      } else if (isWater) {
-        console.log(`[M-PESA Webhook] Dispatching water bill payment for tx ${tx.id}, Account: ${tx.destination}`);
-        const paybillHandler = new PayBillServiceHandler(kyandaProvider);
-        vendingResult = await paybillHandler.vendWater({
-          amount: tx.amount,
-          accountNumber: tx.destination,
-          initiatorPhone
-        });
-      } else if (serviceType === 'airtime' || serviceType === 'data') {
-        const singleProduct = Array.isArray(products) ? products[0] : products;
-        let productCode = singleProduct?.provider_product_id || undefined;
-
-        if (!productCode) {
-          const { data: createdEvent } = await supabaseService
-            .from('transaction_events')
-            .select('details')
-            .eq('transaction_id', tx.id)
-            .eq('status', 'CREATED')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          if (createdEvent?.details?.productCode) {
-            productCode = createdEvent.details.productCode;
-          }
-        }
-
-        // Route Safaricom & Airtel data bundles through the Reseller API
-        const isResellerBundle = serviceSlug === 'safaricom-data' || serviceSlug === 'airtel-data';
-
-        if (isResellerBundle) {
-          console.log(`[M-PESA Webhook] Dispatching bundle vending via Reseller API for tx ${tx.id}, Product: ${productCode || tx.amount}`);
-          const bingwaProvider = new BingwaProvider();
-          const bundleRes = await bingwaProvider.vendBundle({
-            phone: tx.destination,
-            bundleCode: productCode || `${tx.amount}KES`,
-            amount: tx.amount,
-            reference: tx.qsn_reference || tx.id,
-          });
-
-          vendingResult = {
-            merchant_reference: bundleRes.transaction_id || bundleRes.reference || `RES-${Date.now()}`,
-            ...bundleRes,
-          };
-        } else {
-          let telco = getKyandaTelco(serviceSlug);
-
-          // For Faiba Bundles, Kyanda expects telco 'FAIBA_B' with productCode
-          if (serviceSlug.includes('faiba') && (serviceType === 'data' || productCode)) {
-            telco = 'FAIBA_B';
-          }
-
-          console.log(`[Kyanda Vending Payload] Type: ${serviceType}, Amount: ${tx.amount}, Dest: ${tx.destination}, Telco: ${telco}, ProductCode: ${productCode}, Initiator: ${initiatorPhone}`);
-
-          vendingResult = await kyandaProvider.buyAirtime(
-            tx.amount,
-            tx.destination,
-            telco,
-            initiatorPhone,
-            productCode
-          );
-        }
-      } else {
-        const telco = getKyandaTelco(serviceSlug);
-        console.log(`[Kyanda Vending Payload] Bill Payment. Type: ${serviceType}, Amount: ${tx.amount}, Dest: ${tx.destination}, Telco: ${telco}, Initiator: ${initiatorPhone}`);
-        vendingResult = await kyandaProvider.payBill(
-          tx.amount,
-          tx.destination,
-          telco,
-          initiatorPhone
-        );
-      }
-
-      console.log(`[M-PESA Webhook] Vending response received for ${tx.id}, Kyanda Ref: ${vendingResult.merchant_reference}`);
-      
-      const rawRes = vendingResult as Record<string, unknown>;
-      const details = (rawRes?.details || rawRes?.rawResponse) as Record<string, unknown> | undefined;
-      const token = (rawRes?.token || rawRes?.Token || details?.Token || details?.token) as string | undefined;
-      const units = (rawRes?.units || rawRes?.Units || details?.Units || details?.units) as string | undefined;
-
-      const metadata: Record<string, unknown> = {
-        merchant_reference: vendingResult.merchant_reference,
-        kyanda_response: vendingResult
-      };
-      if (token) metadata.token = token;
-      if (units) metadata.units = units;
-
-      // For airtime/data or if token is already returned, finalize immediately as SUCCESS
-      if (serviceType === 'airtime' || serviceType === 'data' || token) {
-        console.log(`[M-PESA Webhook] Finalizing transaction ${tx.id} to SUCCESS`);
-        await orchestrator.finalizeTransaction(
-          tx.id,
-          true,
-          undefined,
-          vendingResult.merchant_reference,
-          metadata
-        );
-      } else {
-        // For utility bills awaiting asynchronous token delivery via IPN
-        await supabaseService
-          .from('transactions')
-          .update({ 
-            kyanda_reference: vendingResult.merchant_reference
-          })
-          .eq('id', tx.id);
-
-        await orchestrator.logEvent(tx.id, 'VENDING_PENDING', metadata);
-      }
-
+      console.log(`[M-PESA Webhook] Starting immediate vending execution for ${tx.id}`);
+      const vendRes = await executeVendingForTransaction(tx.id, supabaseService);
+      console.log(`[M-PESA Webhook] Vending execution completed for ${tx.id}, status: ${vendRes.status}`);
     } catch (vendingError: unknown) {
       const err = vendingError as { message?: string; category?: string };
-      console.error(`[M-PESA Webhook] Vending failed for ${tx.id}:`, err?.message);
-      // Customer has already paid via M-Pesa. Transition to VENDING_FAILED_REFUND_PENDING
-      // so it is immediately flagged for review/reversal rather than silently stuck.
-      await orchestrator.markVendingFailedRefundPending(
-        tx.id,
-        err?.message || 'Kyanda API failed',
-        undefined,
-        {
-          error: err?.message,
-          error_category: err?.category || 'UNKNOWN',
-          mpesaReceipt
-        }
-      );
+      console.error(`[M-PESA Webhook] Vending execution failed for ${tx.id}:`, err?.message);
     }
 
     // Acknowledge Daraja immediately

@@ -27,6 +27,12 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // Prefetch dashboard & admin routes for instant client-side transition
+  useEffect(() => {
+    router.prefetch("/dashboard");
+    router.prefetch("/admin");
+  }, [router]);
+
   // Redirect immediately if already authenticated
   useEffect(() => {
     if (user && step !== "SUCCESS") {
@@ -36,9 +42,12 @@ function LoginForm() {
         ? (searchParams.get("redirect") || "/admin")
         : "/dashboard";
       setStep("SUCCESS");
-      window.location.replace(target);
+      router.replace(target);
+      setTimeout(() => {
+        window.location.replace(target);
+      }, 500);
     }
-  }, [user, step, searchParams]);
+  }, [user, step, searchParams, router]);
 
   // Resend cooldown timer
   useEffect(() => {
@@ -162,7 +171,10 @@ function LoginForm() {
 
       // Disappear login page immediately
       setStep("SUCCESS");
-      window.location.replace(target);
+      router.replace(target);
+      setTimeout(() => {
+        window.location.replace(target);
+      }, 500);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to complete sign-in.");
     } finally {
@@ -170,27 +182,18 @@ function LoginForm() {
     }
   };
 
+  // Login page disappears immediately upon success
+  if (step === "SUCCESS") {
+    return null;
+  }
+
   return (
     <div className="flex flex-col min-h-[calc(100vh-80px)] pt-20">
       <div className="absolute top-1/4 -left-1/4 w-1/2 h-1/2 bg-primary/10 blur-[120px] rounded-full pointer-events-none" />
 
       <div className="container mx-auto px-4 md:px-6 flex-1 flex flex-col items-center justify-center relative z-10 py-12">
         <div className="w-full max-w-md p-8 sm:p-10 rounded-3xl bg-card border border-border/50 shadow-xl backdrop-blur-sm transition-all duration-300">
-          
-          {step === "SUCCESS" ? (
-            <div className="text-center py-10 space-y-4 animate-in fade-in duration-200">
-              <div className="mx-auto w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center">
-                <ShieldCheck className="w-9 h-9" />
-              </div>
-              <h2 className="text-xl font-bold tracking-tight text-foreground">
-                Signed In Successfully
-              </h2>
-              <p className="text-sm text-muted-foreground flex items-center justify-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                <span>Redirecting to your dashboard...</span>
-              </p>
-            </div>
-          ) : step === "CREDENTIALS" ? (
+          {step === "CREDENTIALS" ? (
             <>
               <div className="text-center mb-8">
                 <h1 className="text-2xl font-bold tracking-tight text-foreground mb-2">

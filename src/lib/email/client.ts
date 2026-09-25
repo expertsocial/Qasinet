@@ -47,7 +47,7 @@ export function maskRecipients(recipients: string | string[]): string {
  */
 export async function getResendCredentials(): Promise<{ apiKey: string; fromEmail: string }> {
   let apiKey = process.env.RESEND_API_KEY || '';
-  let fromEmail = process.env.RESEND_FROM_EMAIL || 'QasiNet <onboarding@resend.dev>';
+  let fromEmail = process.env.RESEND_FROM_EMAIL || 'QasiNet <noreply@qasinet.com>';
 
   if (!apiKey || apiKey.startsWith('re_your_')) {
     try {

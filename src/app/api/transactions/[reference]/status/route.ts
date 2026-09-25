@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { TransactionOrchestrator } from '@/lib/services/orchestrator';
 import { KyandaProvider } from '@/lib/providers/kyanda/provider';
 import { MpesaDarajaProvider } from '@/lib/providers/mpesa/provider';
+import { executeVendingForTransaction } from '@/lib/services/vending';
 
 // Debounce map for outbound Daraja STK queries to avoid spamming Safaricom on fast status polling
 const lastDarajaQueryMap = new Map<string, number>();
@@ -66,7 +67,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ refe
       .maybeSingle();
 
     let currentStatus = tx.status;
-    const kyandaRef = tx.kyanda_reference;
+    let kyandaRef = tx.kyanda_reference;
     const metadata: any = latestEvent?.details || {};
 
     // On-demand reconciliation for PAYMENT_PENDING (auto-resolve expired/declined prompts)
@@ -75,8 +76,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ refe
       const now = Date.now();
       const ageMs = now - createdAt;
 
-      // Reconcile if prompt was initiated at least 45 seconds ago
-      if (ageMs > 45000) {
+      // Reconcile if prompt was initiated at least 5 seconds ago
+      if (ageMs > 5000) {
         const lastQuery = lastDarajaQueryMap.get(tx.id) || 0;
         if (now - lastQuery >= DARAJA_QUERY_DEBOUNCE_MS) {
           lastDarajaQueryMap.set(tx.id, now);
@@ -101,10 +102,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ refe
 
               const orchestrator = new TransactionOrchestrator(supabase);
               if (queryRes.ResultCode === '0') {
-                console.log(`[On-Demand Reconciliation] STK status confirmed paid for ${reference}`);
+                console.log(`[On-Demand Reconciliation] STK confirmed paid for ${reference}. Immediately executing vending.`);
                 await orchestrator.updatePaymentState(tx.id, 'PAYMENT_CONFIRMED', tx.payment_reference);
                 await orchestrator.authorizeVending(tx.id);
-                currentStatus = 'VENDING_PENDING';
+                
+                // Immediately execute vending for sub-5s resolution
+                const vendRes = await executeVendingForTransaction(tx.id, supabase);
+                currentStatus = vendRes.status;
+                if (vendRes.providerReference) {
+                  kyandaRef = vendRes.providerReference;
+                }
               } else {
                 const reason = queryRes.ResultDesc || 'M-Pesa payment prompt expired or declined';
                 console.log(`[On-Demand Reconciliation] STK status not paid for ${reference}: ResultCode ${queryRes.ResultCode} (${reason})`);
@@ -132,48 +139,64 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ refe
     }
 
     // On-demand reconciliation for VENDING_PENDING
-    if (tx.status === 'VENDING_PENDING' && tx.kyanda_reference) {
-      const updatedAt = new Date(tx.updated_at).getTime();
-      const now = Date.now();
-      
-      // If pending for more than 2 seconds, fetch live status from Kyanda
-      if (now - updatedAt > 2000) {
-        console.log(`[On-Demand Reconciliation] Fetching Kyanda status for ${reference}`);
+    if (tx.status === 'VENDING_PENDING' || currentStatus === 'VENDING_PENDING') {
+      const activeKyandaRef = tx.kyanda_reference || kyandaRef;
+
+      // If pending without a provider reference, dispatch vending immediately
+      if (!activeKyandaRef) {
+        console.log(`[On-Demand Reconciliation] VENDING_PENDING has no provider reference for ${reference}. Executing vending now.`);
         try {
-          const kyandaProvider = new KyandaProvider();
-          const response = await kyandaProvider.checkTransactionStatus(tx.kyanda_reference);
-          
-          const kyandaStatus = response.status?.toLowerCase() || response.details?.Status?.toLowerCase() || '';
-          
-          let isFinal = false;
-          let isSuccess = false;
-
-          if (kyandaStatus === 'success' || kyandaStatus === '0000' || kyandaStatus === 'completed') {
-            isFinal = true;
-            isSuccess = true;
-          } else if (kyandaStatus === 'failed' || kyandaStatus.includes('error')) {
-            isFinal = true;
-            isSuccess = false;
-          }
-
-          if (isFinal) {
-            const orchestrator = new TransactionOrchestrator(supabase);
-            const token = (response.details as any)?.Token || (response as any).Token || (response.details as any)?.token;
-            const units = (response.details as any)?.Units || (response as any).Units || (response.details as any)?.units;
-            if (token) metadata.token = token;
-            if (units) metadata.units = units;
-
-            await orchestrator.finalizeTransaction(
-              tx.id, 
-              isSuccess, 
-              isSuccess ? undefined : `Reconciled manually: ${kyandaStatus}`,
-              tx.kyanda_reference,
-              metadata
-            );
-            currentStatus = isSuccess ? 'SUCCESS' : 'VENDING_FAILED';
+          const vendRes = await executeVendingForTransaction(tx.id, supabase);
+          currentStatus = vendRes.status;
+          if (vendRes.providerReference) {
+            kyandaRef = vendRes.providerReference;
           }
         } catch (err: any) {
-          console.error(`[On-Demand Reconciliation] Error for ${reference}:`, err.message);
+          console.error(`[On-Demand Reconciliation] Vending dispatch error for ${reference}:`, err.message);
+        }
+      } else {
+        const updatedAt = new Date(tx.updated_at).getTime();
+        const now = Date.now();
+        
+        // If pending for more than 2 seconds, fetch live status from Kyanda
+        if (now - updatedAt > 2000) {
+          console.log(`[On-Demand Reconciliation] Fetching Kyanda status for ${reference}`);
+          try {
+            const kyandaProvider = new KyandaProvider();
+            const response = await kyandaProvider.checkTransactionStatus(activeKyandaRef);
+            
+            const kyandaStatus = response.status?.toLowerCase() || response.details?.Status?.toLowerCase() || '';
+            
+            let isFinal = false;
+            let isSuccess = false;
+
+            if (kyandaStatus === 'success' || kyandaStatus === '0000' || kyandaStatus === 'completed') {
+              isFinal = true;
+              isSuccess = true;
+            } else if (kyandaStatus === 'failed' || kyandaStatus.includes('error')) {
+              isFinal = true;
+              isSuccess = false;
+            }
+
+            if (isFinal) {
+              const orchestrator = new TransactionOrchestrator(supabase);
+              const token = (response.details as any)?.Token || (response as any).Token || (response.details as any)?.token;
+              const units = (response.details as any)?.Units || (response as any).Units || (response.details as any)?.units;
+              if (token) metadata.token = token;
+              if (units) metadata.units = units;
+
+              await orchestrator.finalizeTransaction(
+                tx.id, 
+                isSuccess, 
+                isSuccess ? undefined : `Reconciled manually: ${kyandaStatus}`,
+                activeKyandaRef,
+                metadata
+              );
+              currentStatus = isSuccess ? 'SUCCESS' : 'VENDING_FAILED';
+            }
+          } catch (err: any) {
+            console.error(`[On-Demand Reconciliation] Error for ${reference}:`, err.message);
+          }
         }
       }
     }

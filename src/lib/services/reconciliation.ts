@@ -2,6 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { TransactionOrchestrator } from './orchestrator';
 import { KyandaProvider } from '../providers/kyanda/provider';
 import { MpesaDarajaProvider } from '../providers/mpesa/provider';
+import { executeVendingForTransaction } from './vending';
 
 export class ReconciliationService {
   private readonly mpesaProvider: MpesaDarajaProvider;
@@ -17,17 +18,38 @@ export class ReconciliationService {
 
   public async reconcilePendingTransactions() {
     console.log('[Reconciliation] Starting run...');
+
+    // 1. Immediately recover any VENDING_PENDING transactions missing a provider reference
+    const thirtySecsAgo = new Date(Date.now() - 30 * 1000).toISOString();
+    const { data: missingRefTxs } = await this.supabase
+      .from('transactions')
+      .select('id, qsn_reference, status, created_at')
+      .eq('status', 'VENDING_PENDING')
+      .is('kyanda_reference', null)
+      .lte('created_at', thirtySecsAgo)
+      .limit(20);
+
+    if (missingRefTxs && missingRefTxs.length > 0) {
+      console.log(`[Reconciliation] Found ${missingRefTxs.length} VENDING_PENDING txs missing provider reference. Dispatching vending now...`);
+      for (const mTx of missingRefTxs) {
+        try {
+          console.log(`[Reconciliation] Dispatching vending for TX ${mTx.id} (${mTx.qsn_reference})`);
+          await executeVendingForTransaction(mTx.id, this.supabase);
+        } catch (mErr: any) {
+          console.error(`[Reconciliation] Failed to vend for TX ${mTx.id}:`, mErr?.message);
+        }
+      }
+    }
     
-    // Find VENDING_PENDING transactions where next_retry_at is due (or NULL)
-    // Safety net: Poll transactions that have been in VENDING_PENDING for ~5-10 minutes,
-    // to give the primary IPN callback time to arrive first.
-    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    // 2. Find VENDING_PENDING transactions with kyanda_reference to poll
+    const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
     
     const { data: pendingTxs, error } = await this.supabase
       .from('transactions')
       .select('id, kyanda_reference, status, created_at, next_retry_at')
       .eq('status', 'VENDING_PENDING')
-      .lte('created_at', fiveMinAgo)
+      .not('kyanda_reference', 'is', null)
+      .lte('created_at', twoMinAgo)
       .limit(50); // Process in batches
 
     if (error) {
@@ -46,15 +68,6 @@ export class ReconciliationService {
       console.log(`[Reconciliation] Checking transaction ${tx.id} (Kyanda Ref: ${tx.kyanda_reference})`);
 
       if (!tx.kyanda_reference) {
-        // If customer paid via M-Pesa but no Kyanda ref was obtained after 15 minutes,
-        // flag for refund review rather than leaving silently stuck.
-        const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000);
-        if (new Date(tx.created_at) < fifteenMinAgo) {
-          await this.orchestrator.markVendingFailedRefundPending(
-            tx.id,
-            'No Kyanda provider reference obtained after 15 minutes'
-          );
-        }
         continue;
       }
 
@@ -218,9 +231,8 @@ export class ReconciliationService {
           const queryRes = await this.mpesaProvider.querySTKStatus(tx.payment_reference);
 
           if (queryRes.ResultCode === '0') {
-            console.log(`[Reconciliation] Payment confirmed on Daraja for TX ${tx.id}. Transitioning to PAYMENT_CONFIRMED.`);
-            await this.orchestrator.updatePaymentState(tx.id, 'PAYMENT_CONFIRMED', tx.payment_reference);
-            await this.orchestrator.authorizeVending(tx.id);
+            console.log(`[Reconciliation] Payment confirmed on Daraja for TX ${tx.id}. Immediately executing vending.`);
+            await executeVendingForTransaction(tx.id, this.supabase);
           } else {
             // ResultCode != 0 (e.g. 1032 user cancelled, 1037 timeout, 1 insufficient balance, 4999 duplicated session)
             const reason = queryRes.ResultDesc || 'M-Pesa payment prompt expired or declined';

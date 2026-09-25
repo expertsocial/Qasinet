@@ -86,7 +86,7 @@ export async function testResendConnectionAction(apiKey: string, fromEmail: stri
     if (!key) {
       return { success: false, message: 'No Resend API key provided. Please enter a valid key.' };
     }
-    const from = fromEmail.trim() || process.env.RESEND_FROM_EMAIL || 'QasiNet <onboarding@resend.dev>';
+    const from = fromEmail.trim() || process.env.RESEND_FROM_EMAIL || 'QasiNet <noreply@qasinet.com>';
     const { Resend } = await import('resend');
     const resend = new Resend(key);
     const { data, error } = await resend.emails.send({

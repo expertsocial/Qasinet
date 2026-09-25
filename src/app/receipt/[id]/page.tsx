@@ -276,7 +276,13 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
               <div>
                 <p className="text-sm font-semibold text-amber-600 dark:text-amber-400">
                   {data?.state === "VENDING_PENDING" 
-                    ? "Generating token & completing vending..." 
+                    ? (data?.service?.type === 'airtime' || data?.service?.slug?.includes('airtime')
+                        ? "Vending airtime directly to your line..."
+                        : data?.service?.type === 'data' || data?.service?.slug?.includes('data') || data?.service?.slug?.includes('bundle')
+                        ? "Activating data bundle with telecom provider..."
+                        : data?.service?.type === 'electricity' || data?.service?.slug?.includes('kplc')
+                        ? "Generating token & completing vending..."
+                        : "Completing provider order...") 
                     : "Confirming M-Pesa payment..."}
                 </p>
                 <p className="text-xs text-muted-foreground">

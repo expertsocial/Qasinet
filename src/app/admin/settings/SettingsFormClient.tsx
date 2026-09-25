@@ -63,7 +63,7 @@ export default function SettingsFormClient({
 
   // Resend state
   const [resendApiKey, setResendApiKey] = useState(resendConfig.api_key || '');
-  const [resendFromEmail, setResendFromEmail] = useState(resendConfig.from_email || 'QasiNet <onboarding@resend.dev>');
+  const [resendFromEmail, setResendFromEmail] = useState(resendConfig.from_email || 'QasiNet <noreply@qasinet.com>');
   const [testEmailRecipient, setTestEmailRecipient] = useState('');
   const [resendTestResult, setResendTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -281,7 +281,7 @@ export default function SettingsFormClient({
 
     const value = {
       api_key: newApiKey,
-      from_email: resendFromEmail.trim() || 'QasiNet <onboarding@resend.dev>'
+      from_email: resendFromEmail.trim() || 'QasiNet <noreply@qasinet.com>'
     };
 
     try {

@@ -465,7 +465,13 @@ function TrackTransactionContent() {
                     {isDelivered 
                       ? "Order dispatched & processed by provider."
                       : status === "VENDING_PENDING"
-                      ? "Processing with utility provider. Generating token/airtime..."
+                      ? (tx.services?.type === 'airtime' || tx.services?.slug?.includes('airtime')
+                          ? "Vending airtime directly to your line..."
+                          : tx.services?.type === 'data' || tx.services?.slug?.includes('data') || tx.services?.slug?.includes('bundle')
+                          ? "Activating data bundle with telecom provider..."
+                          : tx.services?.type === 'electricity' || tx.services?.slug?.includes('kplc')
+                          ? "Processing with utility provider. Generating token..."
+                          : "Processing order with service provider...")
                       : "Waiting for payment verification."}
                   </p>
                 </div>

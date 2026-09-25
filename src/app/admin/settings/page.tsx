@@ -34,7 +34,7 @@ export default async function AdminSettingsPage() {
 
   const resendConfig = settingsMap['resend_config'] || {
     api_key: process.env.RESEND_API_KEY || '',
-    from_email: process.env.RESEND_FROM_EMAIL || 'QasiNet <onboarding@resend.dev>'
+    from_email: process.env.RESEND_FROM_EMAIL || 'QasiNet <noreply@qasinet.com>'
   };
 
   return (
