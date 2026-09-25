@@ -10,11 +10,9 @@ import {
   Clock, 
   AlertCircle, 
   Zap, 
-  ArrowRight, 
   Copy, 
   Check, 
   Mail, 
-  ExternalLink, 
   RefreshCw, 
   ShieldCheck, 
   Smartphone, 
@@ -55,7 +53,7 @@ interface TrackResponse {
   events: Array<{
     id: string;
     status: string;
-    details?: any;
+    details?: Record<string, unknown> | null;
     created_at: string;
   }>;
   metadata?: {
@@ -78,8 +76,7 @@ function TrackTransactionContent() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState(false);
 
-  // Polling state
-  const [isPolling, setIsPolling] = useState(false);
+  // Polling timer reference
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Email modal state
@@ -112,7 +109,7 @@ function TrackTransactionContent() {
 
       setResult(json);
       return json;
-    } catch (err: any) {
+    } catch {
       if (!isBackground) {
         setErrorMsg("Network error checking transaction status. Please retry.");
       }
@@ -122,30 +119,37 @@ function TrackTransactionContent() {
     }
   }, []);
 
-  // Handle URL query parameters on mount
+  // Handle URL query parameters on mount asynchronously to prevent cascading renders
   useEffect(() => {
+    let active = true;
     if (refFromQuery && phoneFromQuery) {
-      fetchTrackData(refFromQuery, phoneFromQuery);
+      const timer = setTimeout(() => {
+        if (active) {
+          fetchTrackData(refFromQuery, phoneFromQuery);
+        }
+      }, 0);
+      return () => {
+        active = false;
+        clearTimeout(timer);
+      };
     }
   }, [refFromQuery, phoneFromQuery, fetchTrackData]);
 
   // Live auto-polling if transaction is pending
   useEffect(() => {
-    if (!result?.transaction) return;
+    const currentTx = result?.transaction;
+    if (!currentTx) return;
 
     const pendingStates = ["CREATED", "PAYMENT_PENDING", "VENDING_PENDING"];
-    const status = result.transaction.status;
+    const status = currentTx.status;
 
     if (pendingStates.includes(status)) {
-      setIsPolling(true);
-
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
 
       pollIntervalRef.current = setInterval(async () => {
         const updated = await fetchTrackData(txRef, phone, true);
         if (updated?.transaction && !pendingStates.includes(updated.transaction.status)) {
           if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-          setIsPolling(false);
           if (updated.transaction.status === "SUCCESS") {
             toast.success("Order Complete! Your utility has been delivered.");
           } else {
@@ -154,14 +158,13 @@ function TrackTransactionContent() {
         }
       }, 3000);
     } else {
-      setIsPolling(false);
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     }
 
     return () => {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     };
-  }, [result?.transaction?.status, txRef, phone, fetchTrackData]);
+  }, [result?.transaction, txRef, phone, fetchTrackData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -211,6 +214,7 @@ function TrackTransactionContent() {
   const tx = result?.transaction;
   const metadata = result?.metadata;
   const status = tx?.status || "";
+  const isPolling = Boolean(status && ["CREATED", "PAYMENT_PENDING", "VENDING_PENDING"].includes(status));
 
   const feedback = tx ? getTransactionFeedback({
     status: tx.status,
