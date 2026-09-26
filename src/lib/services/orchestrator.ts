@@ -259,11 +259,18 @@ export class TransactionOrchestrator {
       throw new QasiNetError('VALIDATION_ERROR', 'Transaction not found');
     }
 
-    if (tx.status !== 'CREATED' && tx.status !== 'PAYMENT_PENDING') {
-      throw new QasiNetError('VALIDATION_ERROR', `Cannot update payment from state: ${tx.status}`);
+    const allowedPreviousStates = newState === 'PAYMENT_CONFIRMED'
+      ? ['CREATED', 'PAYMENT_PENDING', 'PAYMENT_FAILED']
+      : ['CREATED', 'PAYMENT_PENDING'];
+
+    if (!allowedPreviousStates.includes(tx.status)) {
+      throw new QasiNetError('VALIDATION_ERROR', `Cannot update payment to ${newState} from state: ${tx.status}`);
     }
 
     const updatePayload: Record<string, unknown> = { status: newState };
+    if (newState === 'PAYMENT_CONFIRMED') {
+      updatePayload.failure_reason = null;
+    }
     if (paymentRef) {
       updatePayload.payment_reference = paymentRef;
     }

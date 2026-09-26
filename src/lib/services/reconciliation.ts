@@ -236,13 +236,23 @@ export class ReconciliationService {
           } else {
             // ResultCode != 0 (e.g. 1032 user cancelled, 1037 timeout, 1 insufficient balance, 4999 duplicated session)
             const reason = queryRes.ResultDesc || 'M-Pesa payment prompt expired or declined';
-            console.log(`[Reconciliation] Daraja STK status for TX ${tx.id}: ResultCode ${queryRes.ResultCode} (${reason}). Marking PAYMENT_FAILED.`);
-            await this.orchestrator.updatePaymentState(
-              tx.id,
-              'PAYMENT_FAILED',
-              undefined,
-              reason
-            );
+            const lowerReason = reason.toLowerCase();
+            const isStillProcessing = lowerReason.includes('processing') || queryRes.ResultCode === '49';
+
+            if (isStillProcessing && ageMs < 90 * 1000) {
+              console.log(`[Reconciliation] TX ${tx.id} still processing on Daraja (${reason}). Keeping PAYMENT_PENDING.`);
+              continue;
+            }
+
+            if (queryRes.ResultCode === '1032' || queryRes.ResultCode === '1' || ageMs >= 90 * 1000) {
+              console.log(`[Reconciliation] Daraja STK status for TX ${tx.id}: ResultCode ${queryRes.ResultCode} (${reason}). Marking PAYMENT_FAILED.`);
+              await this.orchestrator.updatePaymentState(
+                tx.id,
+                'PAYMENT_FAILED',
+                undefined,
+                reason
+              );
+            }
           }
         } catch (err: any) {
           const errorMsg = err?.message || String(err);

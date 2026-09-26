@@ -76,8 +76,10 @@ export async function executeVendingForTransaction(
   }
 
   // Ensure transaction is in authorized state
-  if (tx.status === 'PAYMENT_PENDING' || tx.status === 'CREATED') {
+  if (tx.status === 'PAYMENT_PENDING' || tx.status === 'CREATED' || tx.status === 'PAYMENT_FAILED') {
     await orchestrator.updatePaymentState(tx.id, 'PAYMENT_CONFIRMED', tx.payment_reference || undefined);
+    await orchestrator.authorizeVending(tx.id);
+  } else if (tx.status === 'PAYMENT_CONFIRMED') {
     await orchestrator.authorizeVending(tx.id);
   }
 

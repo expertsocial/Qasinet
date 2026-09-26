@@ -114,10 +114,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ refe
                 }
               } else {
                 const reason = queryRes.ResultDesc || 'M-Pesa payment prompt expired or declined';
-                console.log(`[On-Demand Reconciliation] STK status not paid for ${reference}: ResultCode ${queryRes.ResultCode} (${reason})`);
-                await orchestrator.updatePaymentState(tx.id, 'PAYMENT_FAILED', undefined, reason);
-                currentStatus = 'PAYMENT_FAILED';
-                tx.failure_reason = reason;
+                const lowerReason = reason.toLowerCase();
+                const isStillProcessing = lowerReason.includes('processing') || queryRes.ResultCode === '49';
+
+                if (isStillProcessing && ageMs < 90 * 1000) {
+                  // User is still looking at handset prompt or entering PIN. Maintain PAYMENT_PENDING state.
+                  console.log(`[On-Demand Reconciliation] STK prompt still active on handset for ${reference} (${reason}). Remaining in PAYMENT_PENDING.`);
+                } else if (queryRes.ResultCode === '1032' || queryRes.ResultCode === '1' || ageMs >= 90 * 1000) {
+                  // Terminal states: 1032 (cancelled by user), 1 (insufficient funds), or prompt timeout (>90s)
+                  console.log(`[On-Demand Reconciliation] STK terminal failure for ${reference}: ResultCode ${queryRes.ResultCode} (${reason})`);
+                  await orchestrator.updatePaymentState(tx.id, 'PAYMENT_FAILED', undefined, reason);
+                  currentStatus = 'PAYMENT_FAILED';
+                  tx.failure_reason = reason;
+                } else {
+                  console.log(`[On-Demand Reconciliation] Non-terminal response for ${reference} (code ${queryRes.ResultCode}, ${reason}). Remaining in PAYMENT_PENDING.`);
+                }
               }
             } catch (err: any) {
               console.warn(`[On-Demand Reconciliation] Daraja query error for ${reference}:`, err.message);

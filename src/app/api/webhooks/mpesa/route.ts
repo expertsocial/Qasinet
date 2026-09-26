@@ -41,17 +41,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
     }
 
-    // Ignore if not in PAYMENT_PENDING state to prevent double-processing
-    if (tx.status !== 'PAYMENT_PENDING' && tx.status !== 'CREATED') {
-      console.log(`[M-PESA Webhook] Transaction ${tx.id} already processed. State: ${tx.status}`);
+    // Ignore if already successfully completed or currently vending to prevent double-processing
+    if (tx.status === 'SUCCESS' || tx.status === 'VENDING_PENDING') {
+      console.log(`[M-PESA Webhook] Transaction ${tx.id} already fulfilled or currently vending. State: ${tx.status}`);
       return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
     }
 
     // 2. Check if Payment was Successful on Daraja
     if (ResultCode !== 0) {
       console.warn(`[M-PESA Webhook] Payment failed on Daraja for tx ${tx.id}. Reason: ${ResultDesc}`);
-      await orchestrator.updatePaymentState(tx.id, 'PAYMENT_FAILED', undefined, ResultDesc || 'M-Pesa payment cancelled/failed');
+      if (tx.status === 'PAYMENT_PENDING' || tx.status === 'CREATED') {
+        await orchestrator.updatePaymentState(tx.id, 'PAYMENT_FAILED', undefined, ResultDesc || 'M-Pesa payment cancelled/failed');
+      }
       return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
+    }
+
+    // If transaction was prematurely set to PAYMENT_FAILED by early polling, log rescue
+    if (tx.status === 'PAYMENT_FAILED') {
+      console.log(`[M-PESA Webhook] Rescuing transaction ${tx.id} (${tx.qsn_reference}) from premature PAYMENT_FAILED due to confirmed payment.`);
     }
 
     // 3. Handle Successful Payment
