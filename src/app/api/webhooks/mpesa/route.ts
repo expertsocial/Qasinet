@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     // 1. Find the transaction by CheckoutRequestID (stored in payment_reference)
     const { data: tx, error: fetchError } = await supabaseService
       .from('transactions')
-      .select('id, qsn_reference, status, amount, destination, service_id, product_id')
+      .select('id, qsn_reference, status, amount, destination, service_id, product_id, kyanda_reference')
       .eq('payment_reference', CheckoutRequestID)
       .single();
 
@@ -41,9 +41,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
     }
 
-    // Ignore if already successfully completed or currently vending to prevent double-processing
-    if (tx.status === 'SUCCESS' || tx.status === 'VENDING_PENDING') {
-      console.log(`[M-PESA Webhook] Transaction ${tx.id} already fulfilled or currently vending. State: ${tx.status}`);
+    // Ignore if already successfully completed or currently has active provider reference
+    if (tx.status === 'SUCCESS' || tx.status === 'COMPLETED' || (tx.status === 'VENDING_PENDING' && tx.kyanda_reference)) {
+      console.log(`[M-PESA Webhook] Transaction ${tx.id} already fulfilled or actively vending with ref ${tx.kyanda_reference}. State: ${tx.status}`);
       return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
     }
 

@@ -34,8 +34,8 @@ interface ProviderNetwork {
 }
 
 const NETWORKS: ProviderNetwork[] = [
-  { id: "safaricom", name: "Safaricom", logoSrc: "/logos/safaricom-logo.png", supported: true, note: "🔥 Super Bundles", serviceId: "safaricom-data", badge: "Okoa Friendly" },
-  { id: "airtel", name: "Airtel", logoSrc: "/logos/airtel-logo.jpg", supported: true, note: "⚡ High-Speed", serviceId: "airtel-data", badge: "Best Rates" },
+  { id: "safaricom", name: "Safaricom", logoSrc: "/logos/safaricom-logo.png", supported: false, note: "Coming Soon", serviceId: "safaricom-data", badge: "Coming Soon" },
+  { id: "airtel", name: "Airtel", logoSrc: "/logos/airtel-logo.jpg", supported: false, note: "Coming Soon", serviceId: "airtel-data", badge: "Coming Soon" },
   { id: "faiba", name: "Faiba 4G", logoSrc: "/logos/faiba-logo.png", supported: true, note: "📶 Unlimited & Data", serviceId: "faiba-data", badge: "High Speed" },
   { id: "telkom", name: "Telkom", logoSrc: "/logos/telcom-logo.png", supported: false, note: "Coming Soon", serviceId: "telkom-data" },
   { id: "equitel", name: "Equitel", logoSrc: "/logos/equitel-logo.jpg", supported: false, note: "Coming Soon", serviceId: "equitel-data" },
@@ -64,11 +64,9 @@ function DataContent() {
     const netParam = searchParams.get("network") || searchParams.get("provider");
     if (netParam) {
       const lower = netParam.toLowerCase();
-      if (lower.includes("safaricom")) return "safaricom";
-      if (lower.includes("airtel")) return "airtel";
       if (lower.includes("faiba")) return "faiba";
     }
-    return "safaricom";
+    return "faiba";
   });
 
   const [phone, setPhone] = useState<string>(() => {
