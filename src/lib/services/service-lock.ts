@@ -374,7 +374,7 @@ export async function setServiceStatus(params: SetServiceStatusParams): Promise<
           locked_by: adminEmail || adminId || 'admin',
           locked_at: status === 'locked' ? nowIso : null,
           updated_at: nowIso,
-        });
+        }, { onConflict: 'service_id' });
 
       if (!upsertErr) {
         dbSuccess = true;
@@ -389,6 +389,12 @@ export async function setServiceStatus(params: SetServiceStatusParams): Promise<
           admin_email: adminEmail,
           created_at: nowIso,
         });
+
+        // Keep services table is_active synchronized
+        await supabase
+          .from('services')
+          .update({ is_active: status === 'enabled' })
+          .eq('slug', serviceId);
       }
     } catch (err) {
       console.warn('[ServiceLock] Native table write skipped or failed, using system_settings fallback:', err);

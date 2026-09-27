@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { 
@@ -8,14 +8,11 @@ import {
   Lock, 
   Unlock, 
   EyeOff, 
-  Eye, 
   RefreshCw, 
   Clock, 
-  CheckCircle2, 
   AlertTriangle, 
   History, 
   Search,
-  Filter,
   X,
   ChevronRight,
   ArrowLeft,
@@ -53,7 +50,6 @@ interface Props {
 export function ServiceControlClient({ initialServices, initialAuditLog }: Props) {
   const [services, setServices] = useState<ManagedService[]>(initialServices);
   const [auditLog, setAuditLog] = useState<AuditRecord[]>(initialAuditLog);
-  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -98,19 +94,56 @@ export function ServiceControlClient({ initialServices, initialAuditLog }: Props
     }
   };
 
+  const handleQuickLockAsComingSoon = async (service: ManagedService) => {
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/admin/services/control", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          serviceSlug: service.id,
+          status: "locked",
+          reason: "Awaiting production API credentials (Coming Soon)",
+          customerMessage: `${service.title} is coming soon! Direct provider integration is currently finalizing. Please check back shortly.`,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update service");
+      }
+
+      toast.success(
+        `${service.title} locked as Coming Soon`,
+        { style: { background: "#18181b", color: "#f4f4f5", borderRadius: "12px" } }
+      );
+
+      await refreshData();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to lock service";
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const openActionModal = (service: ManagedService, newStatus: "enabled" | "locked" | "hidden") => {
     setActiveService(service);
     setTargetStatus(newStatus);
-    setReason("");
     setReasonError("");
     
-    // Suggest default customer notice if locking
+    // Suggest default reason and customer notice
     if (newStatus === "locked") {
+      setReason("Awaiting production API credentials (Coming Soon)");
       setCustomerMessage(
         service.customerMessage || 
-        `${service.title} is temporarily paused for maintenance. Please check back shortly.`
+        `${service.title} is coming soon! Provider activation is in progress. Please purchase airtime in the meantime.`
       );
+    } else if (newStatus === "enabled") {
+      setReason("Verified and activated for live vending");
+      setCustomerMessage("");
     } else {
+      setReason("Administrative catalog deprecation");
       setCustomerMessage("");
     }
     setModalOpen(true);
@@ -121,10 +154,7 @@ export function ServiceControlClient({ initialServices, initialAuditLog }: Props
     if (!activeService) return;
 
     const trimmedReason = reason.trim();
-    if (!trimmedReason || trimmedReason.length < 3) {
-      setReasonError("Mandatory reason required (at least 3 characters).");
-      return;
-    }
+    const finalReason = trimmedReason || (targetStatus === 'locked' ? 'Service locked / marked as coming soon by admin' : 'Service enabled by admin');
 
     setSubmitting(true);
     setReasonError("");
@@ -136,7 +166,7 @@ export function ServiceControlClient({ initialServices, initialAuditLog }: Props
         body: JSON.stringify({
           serviceSlug: activeService.id,
           status: targetStatus,
-          reason: trimmedReason,
+          reason: finalReason,
           customerMessage: customerMessage.trim() || undefined,
         }),
       });
@@ -153,8 +183,9 @@ export function ServiceControlClient({ initialServices, initialAuditLog }: Props
 
       setModalOpen(false);
       await refreshData();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to update service");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to update service";
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
@@ -431,11 +462,20 @@ export function ServiceControlClient({ initialServices, initialAuditLog }: Props
                               {isEnabled ? (
                                 <>
                                   <button
+                                    onClick={() => handleQuickLockAsComingSoon(service)}
+                                    disabled={submitting}
+                                    className="px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center gap-1 transition-all disabled:opacity-50"
+                                    title="Lock and display Coming Soon notice to customers"
+                                  >
+                                    <Clock className="w-3 h-3" />
+                                    <span>Coming Soon</span>
+                                  </button>
+                                  <button
                                     onClick={() => openActionModal(service, "locked")}
-                                    className="px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center gap-1 transition-all"
+                                    className="px-2 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-medium flex items-center gap-1 transition-all"
+                                    title="Custom lock"
                                   >
                                     <Lock className="w-3 h-3" />
-                                    <span>Lock</span>
                                   </button>
                                   <button
                                     onClick={() => openActionModal(service, "hidden")}
@@ -455,13 +495,22 @@ export function ServiceControlClient({ initialServices, initialAuditLog }: Props
                                     <span>Enable</span>
                                   </button>
                                   {isLocked ? (
-                                    <button
-                                      onClick={() => openActionModal(service, "hidden")}
-                                      className="px-2 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-400 text-xs font-medium transition-all"
-                                      title="Hide instead"
-                                    >
-                                      <EyeOff className="w-3 h-3" />
-                                    </button>
+                                    <>
+                                      <button
+                                        onClick={() => openActionModal(service, "locked")}
+                                        className="px-2 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-medium transition-all"
+                                        title="Edit lock notice or reason"
+                                      >
+                                        <Lock className="w-3 h-3" />
+                                      </button>
+                                      <button
+                                        onClick={() => openActionModal(service, "hidden")}
+                                        className="px-2 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-400 text-xs font-medium transition-all"
+                                        title="Hide instead"
+                                      >
+                                        <EyeOff className="w-3 h-3" />
+                                      </button>
+                                    </>
                                   ) : (
                                     <button
                                       onClick={() => openActionModal(service, "locked")}
@@ -649,18 +698,60 @@ export function ServiceControlClient({ initialServices, initialAuditLog }: Props
 
             {/* Form */}
             <form onSubmit={handleSaveStatus} className="space-y-4">
-              {/* Mandatory Reason */}
+              {/* Reason & Presets */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-semibold text-neutral-300 flex items-center gap-1">
-                    <span>Mandatory Reason</span>
-                    <span className="text-amber-400">*</span>
+                    <span>Audit Reason</span>
+                    <span className="text-neutral-500 font-normal">(Auto-filled or custom)</span>
                   </label>
                   <span className="text-[10px] text-neutral-500">Recorded in audit trail</span>
                 </div>
+
+                {/* Quick Presets */}
+                <div className="flex flex-wrap items-center gap-1.5 pb-1">
+                  <span className="text-[10px] text-neutral-400">Presets:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTargetStatus("locked");
+                      setReason("Awaiting production API credentials (Coming Soon)");
+                      setCustomerMessage(
+                        activeService 
+                          ? `${activeService.title} is coming soon! Direct provider integration is currently finalizing. Please check back shortly.`
+                          : "Coming soon! Provider activation is currently in progress."
+                      );
+                    }}
+                    className="text-[10px] px-2 py-0.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20 transition-colors"
+                  >
+                    ⏳ Coming Soon
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTargetStatus("locked");
+                      setReason("Scheduled maintenance / network upgrade");
+                      setCustomerMessage("This service is temporarily undergoing scheduled maintenance. Please check back shortly.");
+                    }}
+                    className="text-[10px] px-2 py-0.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700 transition-colors"
+                  >
+                    🔧 Maintenance
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTargetStatus("enabled");
+                      setReason("Production credentials tested and verified for live vending");
+                      setCustomerMessage("");
+                    }}
+                    className="text-[10px] px-2 py-0.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/20 transition-colors"
+                  >
+                    ✅ Live Ready
+                  </button>
+                </div>
+
                 <input
                   type="text"
-                  required
                   value={reason}
                   onChange={(e) => {
                     setReason(e.target.value);

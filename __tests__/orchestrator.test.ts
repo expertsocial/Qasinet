@@ -111,7 +111,7 @@ describe('TransactionOrchestrator', () => {
 
       await expect(
         orchestrator.updatePaymentState('tx-1', 'PAYMENT_CONFIRMED')
-      ).rejects.toThrowError(new QasiNetError('VALIDATION_ERROR', 'Cannot update payment from state: VENDING_PENDING'));
+      ).rejects.toThrowError(new QasiNetError('VALIDATION_ERROR', 'Cannot update payment to PAYMENT_CONFIRMED from state: VENDING_PENDING'));
     });
 
     it('should update to PAYMENT_CONFIRMED successfully', async () => {

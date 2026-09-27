@@ -9,6 +9,7 @@ export function isAuthorizedAdminEmail(email?: string | null): boolean {
   const clean = email.trim().toLowerCase();
   return (
     clean === 'qasinetltd@gmail.com' ||
+    clean === 'sanaregeorge48@gmail.com' ||
     clean.endsWith('@qasinetltd.com') ||
     clean === 'qasinetltd.com' ||
     clean.endsWith('@qasinet.com') ||

@@ -126,17 +126,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Mandatory reason check (Audit trail requirement)
+    // 3. Reason check (Audit trail requirement - provide clean fallback if omitted)
     const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
-    if (!trimmedReason || trimmedReason.length < 3) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: 'A mandatory reason is required to change service status (minimum 3 characters).' 
-        },
-        { status: 400 }
-      );
-    }
+    const finalReason = trimmedReason && trimmedReason.length >= 3 
+      ? trimmedReason 
+      : (status === 'locked' 
+          ? 'Service locked / marked as coming soon by administrator' 
+          : status === 'hidden'
+          ? 'Service hidden from catalog by administrator'
+          : 'Service enabled for live vending by administrator');
 
     const adminEmail = auth.user.email || 'Admin';
     const trimmedCustomerMsg = typeof customerMessage === 'string' && customerMessage.trim() ? customerMessage.trim() : null;
@@ -145,7 +143,7 @@ export async function POST(req: NextRequest) {
     const updatedStatus = await setServiceStatus({
       serviceSlug,
       status,
-      reason: trimmedReason,
+      reason: finalReason,
       customerMessage: trimmedCustomerMsg || undefined,
       changedBy: adminEmail,
     });
