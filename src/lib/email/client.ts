@@ -47,9 +47,16 @@ export function maskRecipients(recipients: string | string[]): string {
  */
 export async function getResendCredentials(): Promise<{ apiKey: string; fromEmail: string }> {
   let apiKey = process.env.RESEND_API_KEY || '';
-  let fromEmail = process.env.RESEND_FROM_EMAIL || 'QasiNet <noreply@qasinet.com>';
+  let fromEmail = process.env.RESEND_FROM_EMAIL || 'QasiNet <onboarding@resend.dev>';
 
-  if (!apiKey || apiKey.startsWith('re_your_')) {
+  // Check Supabase system_settings if API key is missing or if fromEmail points to an unverified custom domain
+  const needsSettingsCheck =
+    !apiKey ||
+    apiKey.startsWith('re_your_') ||
+    !process.env.RESEND_FROM_EMAIL ||
+    fromEmail.includes('@qasinet.com');
+
+  if (needsSettingsCheck) {
     try {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
       const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -61,7 +68,7 @@ export async function getResendCredentials(): Promise<{ apiKey: string; fromEmai
           .eq('key', 'resend_config')
           .maybeSingle();
 
-        if (data?.value?.api_key) {
+        if (data?.value?.api_key && (!apiKey || apiKey.startsWith('re_your_'))) {
           apiKey = data.value.api_key;
         }
         if (data?.value?.from_email) {
@@ -85,7 +92,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
   const { apiKey, fromEmail: defaultFrom } = await getResendCredentials();
   const toList = Array.isArray(options.to) ? options.to : [options.to];
   const maskedTo = maskRecipients(options.to);
-  const from = options.from || defaultFrom;
+  let from = options.from || defaultFrom;
   const timeoutMs = options.timeoutMs ?? 15000;
   const maxRetries = options.maxRetries ?? 2; // Up to 3 total attempts (0, 1, 2)
 
@@ -155,8 +162,27 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
         lastError = error;
         console.warn(`[Resend Client Warning] Resend API error on attempt ${attempt + 1} for ${maskedTo}: ${error.message} (${error.name || 'API_ERROR'})`);
 
+        // If error is due to unverified custom domain (e.g. qasinet.com DNS pending), automatically fallback to sandbox sender
+        const isDomainUnverified =
+          error.message?.includes('not verified') ||
+          error.message?.includes('verify your domain') ||
+          error.message?.includes('verify a domain') ||
+          (error.name === 'validation_error' && from.includes('@qasinet.com'));
+
+        if (isDomainUnverified && from.includes('@qasinet.com')) {
+          console.warn(`[Resend Client Notice] Domain qasinet.com is unverified in Resend. Falling back to sandbox address (onboarding@resend.dev)...`);
+          from = 'QasiNet <onboarding@resend.dev>';
+          // Immediately retry with sandbox address
+          continue;
+        }
+
         // If it's a domain/sandbox restriction (e.g. 403 sending to unverified domain), retrying won't help
-        const isClientForbidden = error.message?.includes('testing emails to your own email address') || error.message?.includes('verify a domain');
+        const isClientForbidden =
+          error.message?.includes('testing emails to your own email address') ||
+          error.message?.includes('verify a domain') ||
+          error.message?.includes('verify your domain') ||
+          error.message?.includes('not verified') ||
+          error.name === 'validation_error';
         if (isClientForbidden) {
           console.warn(`[Resend Client Notice] Sandbox restriction encountered for ${maskedTo}. Will not retry.`);
           return { success: false, error: error.message, attempts: attempt + 1 };

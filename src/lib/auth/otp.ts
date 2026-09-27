@@ -121,6 +121,7 @@ export function clearRateLimitsForTesting(): void {
  * or cold-start serverless environments can share OTPs and tokens safely.
  */
 async function saveToSystemSettings(key: string, value: unknown): Promise<void> {
+  if (process.env.NODE_ENV === 'test') return;
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
   try {
@@ -136,6 +137,7 @@ async function saveToSystemSettings(key: string, value: unknown): Promise<void> 
 }
 
 async function loadFromSystemSettings<T>(key: string): Promise<T | null> {
+  if (process.env.NODE_ENV === 'test') return null;
   const supabase = getSupabaseAdmin();
   if (!supabase) return null;
   try {
@@ -151,6 +153,7 @@ async function loadFromSystemSettings<T>(key: string): Promise<T | null> {
 }
 
 async function deleteFromSystemSettings(key: string): Promise<void> {
+  if (process.env.NODE_ENV === 'test') return;
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
   try {
@@ -305,11 +308,14 @@ export async function requestPasswordResetOTP(
     // If restricted by Resend sandbox before domain DNS verification completes, forward to owner
     const isSandboxRestriction =
       sendRes.error?.includes('testing emails to your own email address') ||
-      sendRes.error?.includes('verify a domain');
+      sendRes.error?.includes('verify a domain') ||
+      sendRes.error?.includes('verify your domain') ||
+      sendRes.error?.includes('not verified');
 
     if (isSandboxRestriction) {
       console.log(`[Password Reset Sandbox Forward] Forwarding reset code for ${maskEmail(normalizedEmail)} to qasinetltd@gmail.com`);
       await sendEmail({
+        from: 'QasiNet <onboarding@resend.dev>',
         to: 'qasinetltd@gmail.com',
         subject: `[Password Reset Code for ${normalizedEmail}]: ${otpCode}`,
         html: `<p>Password reset code for <strong>${normalizedEmail}</strong>: <code>${otpCode}</code> (Forwarded due to pending domain DNS verification on hosting.com).</p>`,
@@ -635,16 +641,28 @@ export async function requestLoginOTP(
     text: `Your QasiNet sign-in verification code is: ${otpCode}\n\nThis code will expire in 10 minutes.\n\nOTPs are sent strictly to your email. If you did not initiate this request, please secure your account.`,
   });
 
+  // Guard against silent mock failure in live environments
+  if (sendRes.id?.startsWith('mock_email_') && process.env.NODE_ENV !== 'test') {
+    console.error(`[Login OTP Error] RESEND_API_KEY is not configured in environment. Cannot deliver admin OTP.`);
+    return {
+      success: false,
+      message: 'Email service is not configured (missing Resend API key). Please contact system administrator.',
+    };
+  }
+
   if (!sendRes.success) {
     console.warn(`[Login OTP Send Warning] Email send to ${maskEmail(normalizedEmail)} returned error: ${sendRes.error}`);
 
     const isSandboxRestriction =
       sendRes.error?.includes('testing emails to your own email address') ||
-      sendRes.error?.includes('verify a domain');
+      sendRes.error?.includes('verify a domain') ||
+      sendRes.error?.includes('verify your domain') ||
+      sendRes.error?.includes('not verified');
 
     if (isSandboxRestriction) {
       console.log(`[Login OTP Sandbox Forward] Forwarding login code for ${maskEmail(normalizedEmail)} to qasinetltd@gmail.com`);
       const forwardRes = await sendEmail({
+        from: 'QasiNet <onboarding@resend.dev>',
         to: 'qasinetltd@gmail.com',
         subject: `[Sign-In Code for ${normalizedEmail}]: ${otpCode}`,
         html: `
@@ -668,7 +686,7 @@ export async function requestLoginOTP(
         text: `Sign-In Code for ${normalizedEmail}: ${otpCode}\n\nForwarded to qasinetltd@gmail.com because qasinet.com domain verification is pending on hosting.com.`,
       });
 
-      if (forwardRes.success) {
+      if (forwardRes.success && (process.env.NODE_ENV === 'test' || !forwardRes.id?.startsWith('mock_email_'))) {
         return {
           success: true,
           message: `Verification code sent to qasinetltd@gmail.com (admin test forward for ${maskEmail(normalizedEmail)} while domain DNS verification is in progress).`,
@@ -852,11 +870,14 @@ export async function requestRegistrationOTP(
 
     const isSandboxRestriction =
       sendRes.error?.includes('testing emails to your own email address') ||
-      sendRes.error?.includes('verify a domain');
+      sendRes.error?.includes('verify a domain') ||
+      sendRes.error?.includes('verify your domain') ||
+      sendRes.error?.includes('not verified');
 
     if (isSandboxRestriction) {
       console.log(`[Reg OTP Sandbox Forward] Forwarding registration code for ${maskEmail(normalizedEmail)} to qasinetltd@gmail.com`);
       const forwardRes = await sendEmail({
+        from: 'QasiNet <onboarding@resend.dev>',
         to: 'qasinetltd@gmail.com',
         subject: `[Account Verification Code for ${normalizedEmail}]: ${otpCode}`,
         html: `

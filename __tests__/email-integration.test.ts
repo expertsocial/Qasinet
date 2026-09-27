@@ -84,7 +84,7 @@ describe('Live Resend Email Integration & Deliverables', () => {
     console.log('Deliverable 4a SUCCESS Receipt Result:', result);
     expect(result.success).toBe(true);
     expect(result.id).toMatch(/^[a-f0-9-]+$/);
-  }, 30000);
+  }, 60000);
 
   it('Deliverable 4b: Dispatches real customer VENDING_FAILED_REFUND_PENDING notice', async () => {
     if (!isKeyAvailable) return;
@@ -104,7 +104,7 @@ describe('Live Resend Email Integration & Deliverables', () => {
     console.log('Deliverable 4b Refund Notice Result:', result);
     expect(result.success).toBe(true);
     expect(result.id).toMatch(/^[a-f0-9-]+$/);
-  }, 30000);
+  }, 60000);
 
   // Deliverable 5: Admin refund-pending alert email to configured admin inbox
   it('Deliverable 5: Dispatches real Admin Refund Alert to configured admin inbox', async () => {
@@ -124,5 +124,5 @@ describe('Live Resend Email Integration & Deliverables', () => {
     console.log('Deliverable 5 Admin Alert Result:', result);
     expect(result.success).toBe(true);
     expect(result.id).toMatch(/^[a-f0-9-]+$/);
-  }, 30000);
+  }, 60000);
 });
